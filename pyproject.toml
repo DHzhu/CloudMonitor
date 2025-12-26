@@ -1,0 +1,63 @@
+[project]
+name = "cloudmonitor"
+version = "1.0.0"
+description = "CloudMonitor Pro - 多云平台与大模型服务监控桌面应用"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    # GUI Framework
+    "flet[all]>=0.80.0",
+    # Core Utilities
+    "keyring>=25.0.0",
+    "httpx>=0.27.0",
+    # Cloud SDKs - AWS
+    "boto3>=1.35.0",
+    # Cloud SDKs - Azure
+    "azure-identity>=1.19.0",
+    "azure-mgmt-costmanagement>=4.0.0",
+    "azure-mgmt-compute>=33.0.0",
+    # Cloud SDKs - Google
+    "google-generativeai>=0.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pyinstaller>=6.11.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "ui", "plugins"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
