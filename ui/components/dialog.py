@@ -40,7 +40,7 @@ class CredentialDialog(ft.AlertDialog):
                     scroll=ft.ScrollMode.AUTO,
                 ),
                 width=400,
-                padding=ft.padding.only(top=16),
+                padding=ft.Padding.only(top=16),
             ),
             actions=[
                 ft.TextButton("取消", on_click=on_cancel),

@@ -43,7 +43,7 @@ class MonitorCard(ft.Container):
             padding=16,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, self._get_status_color())),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, self._get_status_color())),
             animate=ft.Animation(200, ft.AnimationCurve.EASE_IN_OUT),
         )
 
@@ -138,7 +138,7 @@ class MonitorCard(ft.Container):
                 ],
                 spacing=2,
             ),
-            padding=ft.padding.symmetric(vertical=10),
+            padding=ft.Padding.symmetric(vertical=10),
         )
 
     def _build_details(self) -> list[ft.Control]:
@@ -258,7 +258,7 @@ class MonitorCard(ft.Container):
         """更新卡片数据"""
         self.data = data
         self.content = self._build_content()
-        self.border = ft.border.all(1, ft.Colors.with_opacity(0.2, self._get_status_color()))
+        self.border = ft.Border.all(1, ft.Colors.with_opacity(0.2, self._get_status_color()))
 
 
 class LoadingCard(ft.Container):
@@ -294,7 +294,7 @@ class LoadingCard(ft.Container):
             padding=16,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.GREY)),
         )
 
 
@@ -341,6 +341,6 @@ class EmptyCard(ft.Container):
             padding=32,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.05, ft.Colors.WHITE),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.WHITE)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.WHITE)),
             alignment=ft.Alignment.CENTER,
         )

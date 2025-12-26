@@ -185,19 +185,19 @@ class ZhipuBalanceMonitor(BaseMonitor):
                         ft.Text(
                             detail.get("name", "资源包"),
                             size=12,
-                            color=ft.Colors.WHITE70,
+                            color=ft.Colors.WHITE_70,
                         ),
                         ft.ProgressBar(
                             value=usage_percent / 100,
                             color=ft.Colors.BLUE_400,
-                            bgcolor=ft.Colors.WHITE10,
+                            bgcolor=ft.Colors.WHITE_10,
                         ),
                         ft.Row(
                             controls=[
                                 ft.Text(
                                     f"剩余: {detail.get('remaining', 0):,}",
                                     size=10,
-                                    color=ft.Colors.WHITE54,
+                                    color=ft.Colors.WHITE_54,
                                 ),
                                 ft.Text(
                                     detail.get("expiry", ""),
@@ -205,7 +205,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                                     color=(
                                         ft.Colors.AMBER
                                         if "即将" in str(detail.get("expiry", ""))
-                                        else ft.Colors.WHITE54
+                                        else ft.Colors.WHITE_54
                                     ),
                                 ),
                             ],
@@ -247,7 +247,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                                 ft.Text(
                                     data.kpi.label,
                                     size=12,
-                                    color=ft.Colors.WHITE70,
+                                    color=ft.Colors.WHITE_70,
                                 ),
                                 ft.Text(
                                     data.kpi.value,
@@ -258,7 +258,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                             ],
                             spacing=2,
                         ),
-                        padding=ft.padding.symmetric(vertical=10),
+                        padding=ft.Padding.symmetric(vertical=10),
                     ),
                     # 资源包详情
                     *package_rows,
@@ -279,7 +279,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                     ft.Text(
                         f"更新于: {data.last_updated[:19] if data.last_updated else 'N/A'}",
                         size=10,
-                        color=ft.Colors.WHITE38,
+                        color=ft.Colors.WHITE_38,
                     ),
                 ],
                 spacing=8,
@@ -287,5 +287,5 @@ class ZhipuBalanceMonitor(BaseMonitor):
             padding=16,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-            border=ft.border.all(1, ft.Colors.with_opacity(0.2, color)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, color)),
         )

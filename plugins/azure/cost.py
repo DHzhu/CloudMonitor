@@ -1,127 +1,167 @@
 """
-AWS Cost Explorer 费用监控插件
+Azure Cost Management 费用监控插件
 
-使用 boto3 调用 AWS Cost Explorer API 获取账单信息。
+使用 Azure Cost Management SDK 获取账单信息。
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import boto3
 import flet as ft
-from botocore.exceptions import BotoCoreError, ClientError
+from azure.core.exceptions import AzureError, ClientAuthenticationError, HttpResponseError
+from azure.identity import ClientSecretCredential
+from azure.mgmt.costmanagement import CostManagementClient
+from azure.mgmt.costmanagement.models import (
+    ExportType,
+    QueryAggregation,
+    QueryDataset,
+    QueryDefinition,
+    QueryGrouping,
+    QueryTimePeriod,
+    TimeframeType,
+)
 
 from core.plugin_mgr import register_plugin
 from plugins.interface import BaseMonitor, KPIData, MonitorResult, MonitorStatus
 
 
-@register_plugin("aws_cost")
-class AWSCostMonitor(BaseMonitor):
+@register_plugin("azure_cost")
+class AzureCostMonitor(BaseMonitor):
     """
-    AWS 费用监控
+    Azure 费用监控
 
-    监控 AWS 账户的本月至今 (MTD) 费用。
+    监控 Azure 订阅的本月费用。
     """
 
     @property
     def display_name(self) -> str:
-        return "AWS 费用"
+        return "Azure 费用"
 
     @property
     def icon(self) -> str:
-        return "cloud"
+        return "attach_money"
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["access_key_id", "secret_access_key", "region"]
+        return ["tenant_id", "client_id", "client_secret", "subscription_id"]
 
     async def fetch_data(self) -> MonitorResult:
         """
-        获取 AWS 本月费用信息
+        获取 Azure 本月费用信息
 
         Returns:
             MonitorResult: 包含费用信息的结果
         """
-        access_key = self.credentials.get("access_key_id", "")
-        secret_key = self.credentials.get("secret_access_key", "")
-        region = self.credentials.get("region", "us-east-1")
+        tenant_id = self.credentials.get("tenant_id", "")
+        client_id = self.credentials.get("client_id", "")
+        client_secret = self.credentials.get("client_secret", "")
+        subscription_id = self.credentials.get("subscription_id", "")
 
-        if not access_key or not secret_key:
+        if not all([tenant_id, client_id, client_secret, subscription_id]):
             return MonitorResult(
                 status=MonitorStatus.ERROR,
                 kpi=KPIData(label="本月费用", value="N/A"),
                 details=[],
-                error_message="未配置 AWS 凭据",
+                error_message="未配置 Azure 凭据",
             )
 
         try:
-            # 创建 Cost Explorer 客户端
-            # 注意: boto3 是同步的，在生产环境中应该使用 run_in_executor
-            client = boto3.client(
-                "ce",
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name=region,
+            # 创建 Azure 认证凭据
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret,
             )
 
-            # 计算日期范围 (本月1日到今天)
+            # 创建 Cost Management 客户端
+            cost_client = CostManagementClient(
+                credential=credential,
+                subscription_id=subscription_id,
+            )
+
+            # 计算日期范围
             today = datetime.now()
-            start_of_month = today.replace(day=1)
-            end_date = today + timedelta(days=1)  # Cost Explorer 需要排他的结束日期
+            start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            # 调用 Cost Explorer API
-            response = client.get_cost_and_usage(
-                TimePeriod={
-                    "Start": start_of_month.strftime("%Y-%m-%d"),
-                    "End": end_date.strftime("%Y-%m-%d"),
-                },
-                Granularity="MONTHLY",
-                Metrics=["BlendedCost", "UnblendedCost"],
-                GroupBy=[
-                    {"Type": "DIMENSION", "Key": "SERVICE"},
-                ],
+            # 构建查询定义
+            scope = f"/subscriptions/{subscription_id}"
+
+            query_definition = QueryDefinition(
+                type=ExportType.ACTUAL_COST,
+                timeframe=TimeframeType.CUSTOM,
+                time_period=QueryTimePeriod(
+                    from_property=start_of_month,
+                    to=today,
+                ),
+                dataset=QueryDataset(
+                    granularity="None",
+                    aggregation={
+                        "totalCost": QueryAggregation(
+                            name="Cost",
+                            function="Sum",
+                        ),
+                    },
+                    grouping=[
+                        QueryGrouping(
+                            type="Dimension",
+                            name="ResourceGroup",
+                        ),
+                    ],
+                ),
             )
 
-            return self._parse_cost_response(response)
+            # 执行查询
+            result = cost_client.query.usage(scope=scope, parameters=query_definition)
+            return self._parse_cost_response(result)
 
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "Unknown")
-            error_msg = e.response.get("Error", {}).get("Message", str(e))
+        except ClientAuthenticationError:
+            return MonitorResult(
+                status=MonitorStatus.ERROR,
+                kpi=KPIData(label="本月费用", value="认证失败"),
+                details=[],
+                error_message="Azure 凭据无效",
+            )
 
-            if error_code in ("InvalidAccessKeyId", "SignatureDoesNotMatch"):
-                return MonitorResult(
-                    status=MonitorStatus.ERROR,
-                    kpi=KPIData(label="本月费用", value="认证失败"),
-                    details=[],
-                    error_message="AWS 凭据无效",
-                )
-            elif error_code == "AccessDeniedException":
+        except HttpResponseError as e:
+            if "Authorization" in str(e) or "Forbidden" in str(e):
                 return MonitorResult(
                     status=MonitorStatus.ERROR,
                     kpi=KPIData(label="本月费用", value="权限不足"),
                     details=[],
-                    error_message="需要 Cost Explorer 访问权限",
+                    error_message="需要 Cost Management Reader 权限",
                 )
-            else:
-                return MonitorResult(
-                    status=MonitorStatus.ERROR,
-                    kpi=KPIData(label="本月费用", value="请求失败"),
-                    details=[],
-                    error_message=f"{error_code}: {error_msg}",
-                )
+            return MonitorResult(
+                status=MonitorStatus.ERROR,
+                kpi=KPIData(label="本月费用", value="请求失败"),
+                details=[],
+                error_message=f"API 错误: {e!s}",
+            )
 
-        except BotoCoreError as e:
+        except AzureError as e:
             return MonitorResult(
                 status=MonitorStatus.ERROR,
                 kpi=KPIData(label="本月费用", value="错误"),
                 details=[],
-                error_message=f"AWS SDK 错误: {e!s}",
+                error_message=f"Azure 错误: {e!s}",
             )
 
-    def _parse_cost_response(self, response: dict) -> MonitorResult:
-        """解析 Cost Explorer 响应数据"""
-        results_by_time = response.get("ResultsByTime", [])
+    def _parse_cost_response(self, result: object) -> MonitorResult:
+        """解析 Cost Management 响应数据"""
+        # 解析响应中的列和行
+        columns = result.columns if hasattr(result, "columns") else []
+        rows = result.rows if hasattr(result, "rows") else []
 
-        if not results_by_time:
+        # 找到 Cost 和 ResourceGroup 列的索引
+        cost_idx = -1
+        rg_idx = -1
+        for i, col in enumerate(columns):
+            col_name = col.name if hasattr(col, "name") else str(col)
+            if col_name.lower() in ("cost", "totalcost"):
+                cost_idx = i
+            elif col_name.lower() in ("resourcegroup", "resource group"):
+                rg_idx = i
+
+        if cost_idx == -1:
+            # 如果没有找到 cost 列，返回零费用
             return MonitorResult(
                 status=MonitorStatus.ONLINE,
                 kpi=KPIData(label="本月费用", value="$0.00", unit="USD"),
@@ -129,28 +169,23 @@ class AWSCostMonitor(BaseMonitor):
                 last_updated=datetime.now().isoformat(),
             )
 
-        # 获取本月数据
-        current_month = results_by_time[0]
-        groups = current_month.get("Groups", [])
-
-        # 计算总费用和服务明细
+        # 计算总费用和资源组明细
         total_cost = 0.0
-        service_costs: list[dict] = []
+        resource_group_costs: list[dict] = []
 
-        for group in groups:
-            service_name = group.get("Keys", ["Unknown"])[0]
-            metrics = group.get("Metrics", {})
-            blended_cost = float(metrics.get("BlendedCost", {}).get("Amount", 0))
+        for row in rows:
+            cost = float(row[cost_idx]) if cost_idx < len(row) else 0.0
+            rg_name = row[rg_idx] if rg_idx >= 0 and rg_idx < len(row) else "Unknown"
 
-            if blended_cost > 0.01:  # 只显示大于 $0.01 的服务
-                total_cost += blended_cost
-                service_costs.append({
-                    "service": service_name,
-                    "cost": blended_cost,
+            if cost > 0.01:  # 只显示大于 $0.01 的资源组
+                total_cost += cost
+                resource_group_costs.append({
+                    "resource_group": rg_name or "Unassigned",
+                    "cost": cost,
                 })
 
         # 按费用排序
-        service_costs.sort(key=lambda x: x["cost"], reverse=True)
+        resource_group_costs.sort(key=lambda x: x["cost"], reverse=True)
 
         # 确定状态
         if total_cost > 100:
@@ -158,12 +193,12 @@ class AWSCostMonitor(BaseMonitor):
         else:
             status = MonitorStatus.ONLINE
 
-        # 计算各服务占比
+        # 计算各资源组占比
         details = []
-        for item in service_costs[:10]:  # 只显示前 10 个服务
+        for item in resource_group_costs[:10]:  # 只显示前 10 个
             percentage = (item["cost"] / total_cost * 100) if total_cost > 0 else 0
             details.append({
-                "service": item["service"],
+                "resource_group": item["resource_group"],
                 "cost": item["cost"],
                 "percentage": percentage,
             })
@@ -181,7 +216,7 @@ class AWSCostMonitor(BaseMonitor):
         )
 
     def render_card(self, data: MonitorResult) -> ft.Control:
-        """渲染 AWS 费用监控卡片"""
+        """渲染 Azure 费用监控卡片"""
         status_colors = {
             MonitorStatus.ONLINE: ft.Colors.GREEN_400,
             MonitorStatus.WARNING: ft.Colors.AMBER,
@@ -191,14 +226,14 @@ class AWSCostMonitor(BaseMonitor):
 
         color = status_colors.get(data.status, ft.Colors.GREY)
 
-        # 构建服务费用明细
-        service_rows = []
+        # 构建资源组费用明细
+        rg_rows = []
         for detail in data.details[:5]:  # 只显示前 5 个
-            service_rows.append(
+            rg_rows.append(
                 ft.Row(
                     controls=[
                         ft.Text(
-                            self._shorten_service_name(detail.get("service", "")),
+                            self._shorten_rg_name(detail.get("resource_group", "")),
                             size=11,
                             color=ft.Colors.WHITE_70,
                             expand=True,
@@ -224,7 +259,7 @@ class AWSCostMonitor(BaseMonitor):
                     # 标题行
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=ft.Colors.ORANGE, size=24),
+                            ft.Icon(self.icon, color=ft.Colors.BLUE, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
@@ -262,13 +297,13 @@ class AWSCostMonitor(BaseMonitor):
                         ),
                         padding=ft.Padding.symmetric(vertical=10),
                     ),
-                    # 服务费用明细
+                    # 资源组费用明细
                     ft.Text(
-                        "服务明细",
+                        "资源组明细",
                         size=12,
                         color=ft.Colors.WHITE_54,
                     ),
-                    *service_rows,
+                    *rg_rows,
                     # 错误信息
                     *(
                         [
@@ -294,21 +329,9 @@ class AWSCostMonitor(BaseMonitor):
             padding=16,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ORANGE)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.BLUE)),
         )
 
-    def _shorten_service_name(self, name: str) -> str:
-        """缩短 AWS 服务名称"""
-        # AWS 服务名称通常很长，需要缩短
-        replacements = {
-            "Amazon ": "",
-            "AWS ": "",
-            "Elastic Compute Cloud - Compute": "EC2",
-            "Simple Storage Service": "S3",
-            "Relational Database Service": "RDS",
-            "Lambda": "Lambda",
-        }
-        result = name
-        for old, new in replacements.items():
-            result = result.replace(old, new)
-        return result[:25] + "..." if len(result) > 25 else result
+    def _shorten_rg_name(self, name: str) -> str:
+        """缩短资源组名称"""
+        return name[:25] + "..." if len(name) > 25 else name

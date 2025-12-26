@@ -43,7 +43,7 @@ class AppNavigationRail(ft.NavigationRail):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=4,
                 ),
-                padding=ft.padding.only(top=20, bottom=20),
+                padding=ft.Padding.only(top=20, bottom=20),
             ),
             destinations=[
                 ft.NavigationRailDestination(
@@ -148,5 +148,5 @@ class PageHeader(ft.Container):
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.START,
             ),
-            padding=ft.padding.only(bottom=16),
+            padding=ft.Padding.only(bottom=16),
         )

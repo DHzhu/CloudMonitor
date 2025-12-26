@@ -1,170 +1,160 @@
 """
-AWS EC2 状态监控插件
+Azure VM 状态监控插件
 
-使用 boto3 监控 EC2 实例的运行状态和基本指标。
+使用 Azure SDK 监控虚拟机的运行状态。
 """
 
 from datetime import datetime
 
-import boto3
 import flet as ft
-from botocore.exceptions import BotoCoreError, ClientError
+from azure.core.exceptions import AzureError, ClientAuthenticationError
+from azure.identity import ClientSecretCredential
+from azure.mgmt.compute import ComputeManagementClient
 
 from core.plugin_mgr import register_plugin
 from plugins.interface import BaseMonitor, KPIData, MonitorResult, MonitorStatus
 
 
-@register_plugin("aws_ec2")
-class AWSEC2Monitor(BaseMonitor):
+@register_plugin("azure_vm")
+class AzureVMMonitor(BaseMonitor):
     """
-    AWS EC2 状态监控
+    Azure VM 状态监控
 
-    监控 EC2 实例的运行状态。
+    监控 Azure 虚拟机的运行状态。
     """
 
     @property
     def display_name(self) -> str:
-        return "AWS EC2"
+        return "Azure VM"
 
     @property
     def icon(self) -> str:
-        return "dns"
+        return "computer"
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["access_key_id", "secret_access_key", "region"]
+        return ["tenant_id", "client_id", "client_secret", "subscription_id"]
 
     async def fetch_data(self) -> MonitorResult:
         """
-        获取 EC2 实例状态信息
+        获取 Azure VM 实例状态信息
 
         Returns:
             MonitorResult: 包含实例状态的结果
         """
-        access_key = self.credentials.get("access_key_id", "")
-        secret_key = self.credentials.get("secret_access_key", "")
-        region = self.credentials.get("region", "us-east-1")
+        tenant_id = self.credentials.get("tenant_id", "")
+        client_id = self.credentials.get("client_id", "")
+        client_secret = self.credentials.get("client_secret", "")
+        subscription_id = self.credentials.get("subscription_id", "")
 
-        if not access_key or not secret_key:
+        if not all([tenant_id, client_id, client_secret, subscription_id]):
             return MonitorResult(
                 status=MonitorStatus.ERROR,
-                kpi=KPIData(label="实例状态", value="N/A"),
+                kpi=KPIData(label="VM 状态", value="N/A"),
                 details=[],
-                error_message="未配置 AWS 凭据",
+                error_message="未配置 Azure 凭据",
             )
 
         try:
-            # 创建 EC2 客户端
-            client = boto3.client(
-                "ec2",
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name=region,
+            # 创建 Azure 认证凭据
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret,
             )
 
-            # 获取所有实例
-            response = client.describe_instances()
-            return self._parse_instances_response(response, region)
+            # 创建 Compute 管理客户端
+            compute_client = ComputeManagementClient(
+                credential=credential,
+                subscription_id=subscription_id,
+            )
 
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "Unknown")
-            error_msg = e.response.get("Error", {}).get("Message", str(e))
+            # 获取所有虚拟机
+            vms = list(compute_client.virtual_machines.list_all())
+            return self._parse_vm_list(vms, compute_client)
 
-            if error_code in ("InvalidAccessKeyId", "SignatureDoesNotMatch"):
-                return MonitorResult(
-                    status=MonitorStatus.ERROR,
-                    kpi=KPIData(label="实例状态", value="认证失败"),
-                    details=[],
-                    error_message="AWS 凭据无效",
-                )
-            elif error_code == "UnauthorizedOperation":
-                return MonitorResult(
-                    status=MonitorStatus.ERROR,
-                    kpi=KPIData(label="实例状态", value="权限不足"),
-                    details=[],
-                    error_message="需要 EC2 DescribeInstances 权限",
-                )
-            else:
-                return MonitorResult(
-                    status=MonitorStatus.ERROR,
-                    kpi=KPIData(label="实例状态", value="请求失败"),
-                    details=[],
-                    error_message=f"{error_code}: {error_msg}",
-                )
-
-        except BotoCoreError as e:
+        except ClientAuthenticationError:
             return MonitorResult(
                 status=MonitorStatus.ERROR,
-                kpi=KPIData(label="实例状态", value="错误"),
+                kpi=KPIData(label="VM 状态", value="认证失败"),
                 details=[],
-                error_message=f"AWS SDK 错误: {e!s}",
+                error_message="Azure 凭据无效",
             )
 
-    def _parse_instances_response(self, response: dict, region: str) -> MonitorResult:
-        """解析 EC2 实例响应数据"""
+        except AzureError as e:
+            return MonitorResult(
+                status=MonitorStatus.ERROR,
+                kpi=KPIData(label="VM 状态", value="请求失败"),
+                details=[],
+                error_message=f"Azure 错误: {e!s}",
+            )
+
+    def _parse_vm_list(
+        self, vms: list, compute_client: ComputeManagementClient
+    ) -> MonitorResult:
+        """解析 VM 列表"""
         instances: list[dict] = []
 
-        for reservation in response.get("Reservations", []):
-            for instance in reservation.get("Instances", []):
-                instance_id = instance.get("InstanceId", "")
-                state = instance.get("State", {}).get("Name", "unknown")
-                instance_type = instance.get("InstanceType", "")
-
-                # 获取实例名称
-                name = instance_id
-                for tag in instance.get("Tags", []):
-                    if tag.get("Key") == "Name":
-                        name = tag.get("Value", instance_id)
+        for vm in vms:
+            # 解析资源组名称 (从 ID 中提取)
+            resource_group = ""
+            if vm.id:
+                parts = vm.id.split("/")
+                for i, part in enumerate(parts):
+                    if part.lower() == "resourcegroups" and i + 1 < len(parts):
+                        resource_group = parts[i + 1]
                         break
 
-                # 获取公网 IP
-                public_ip = instance.get("PublicIpAddress", "")
-                private_ip = instance.get("PrivateIpAddress", "")
+            # 获取 VM 电源状态
+            power_state = "unknown"
+            try:
+                instance_view = compute_client.virtual_machines.instance_view(
+                    resource_group_name=resource_group,
+                    vm_name=vm.name,
+                )
+                for status in instance_view.statuses or []:
+                    if status.code and status.code.startswith("PowerState/"):
+                        power_state = status.code.replace("PowerState/", "")
+                        break
+            except AzureError:
+                pass  # 如果获取状态失败，保持 unknown
 
-                instances.append({
-                    "id": instance_id,
-                    "name": name,
-                    "state": state,
-                    "type": instance_type,
-                    "public_ip": public_ip,
-                    "private_ip": private_ip,
-                })
+            instances.append({
+                "name": vm.name,
+                "resource_group": resource_group,
+                "location": vm.location,
+                "size": vm.hardware_profile.vm_size if vm.hardware_profile else "",
+                "state": power_state,
+            })
 
-        # 统计运行中的实例数量
+        # 统计运行中的 VM 数量
         running_count = sum(1 for i in instances if i["state"] == "running")
         total_count = len(instances)
 
         # 确定整体状态
         if running_count == 0 and total_count > 0:
             status = MonitorStatus.WARNING
-        elif any(i["state"] not in ("running", "stopped") for i in instances):
+        elif any(i["state"] not in ("running", "deallocated", "stopped") for i in instances):
             status = MonitorStatus.WARNING
         else:
             status = MonitorStatus.ONLINE
 
         kpi_value = f"{running_count}/{total_count}"
-        kpi_label = f"运行中 ({region})"
 
         return MonitorResult(
             status=status,
             kpi=KPIData(
-                label=kpi_label,
+                label="运行中 VM",
                 value=kpi_value,
-                unit="实例",
+                unit="虚拟机",
                 status=status,
             ),
-            details=[{
-                "id": i["id"],
-                "name": i["name"],
-                "state": i["state"],
-                "type": i["type"],
-                "ip": i["public_ip"] or i["private_ip"],
-            } for i in instances],
+            details=instances,
             last_updated=datetime.now().isoformat(),
         )
 
     def render_card(self, data: MonitorResult) -> ft.Control:
-        """渲染 EC2 状态监控卡片"""
+        """渲染 Azure VM 状态监控卡片"""
         status_colors = {
             MonitorStatus.ONLINE: ft.Colors.GREEN_400,
             MonitorStatus.WARNING: ft.Colors.AMBER,
@@ -174,10 +164,11 @@ class AWSEC2Monitor(BaseMonitor):
 
         state_colors = {
             "running": ft.Colors.GREEN_400,
+            "deallocated": ft.Colors.GREY,
             "stopped": ft.Colors.RED_400,
-            "pending": ft.Colors.AMBER,
+            "starting": ft.Colors.AMBER,
             "stopping": ft.Colors.AMBER,
-            "terminated": ft.Colors.GREY,
+            "unknown": ft.Colors.GREY,
         }
 
         color = status_colors.get(data.status, ft.Colors.GREY)
@@ -203,7 +194,7 @@ class AWSEC2Monitor(BaseMonitor):
                             expand=True,
                         ),
                         ft.Text(
-                            detail.get("type", ""),
+                            self._shorten_vm_size(detail.get("size", "")),
                             size=10,
                             color=ft.Colors.WHITE_54,
                         ),
@@ -217,7 +208,7 @@ class AWSEC2Monitor(BaseMonitor):
         if remaining > 0:
             instance_rows.append(
                 ft.Text(
-                    f"... 还有 {remaining} 个实例",
+                    f"... 还有 {remaining} 个 VM",
                     size=10,
                     color=ft.Colors.WHITE_38,
                     italic=True,
@@ -230,7 +221,7 @@ class AWSEC2Monitor(BaseMonitor):
                     # 标题行
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=ft.Colors.ORANGE, size=24),
+                            ft.Icon(self.icon, color=ft.Colors.BLUE, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
@@ -306,5 +297,12 @@ class AWSEC2Monitor(BaseMonitor):
             padding=16,
             border_radius=12,
             bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.ORANGE)),
+            border=ft.Border.all(1, ft.Colors.with_opacity(0.2, ft.Colors.BLUE)),
         )
+
+    def _shorten_vm_size(self, size: str) -> str:
+        """缩短 Azure VM 大小名称"""
+        # Azure VM 大小通常很长，如 Standard_D2s_v3
+        if size.startswith("Standard_"):
+            return size.replace("Standard_", "")
+        return size[:15] + "..." if len(size) > 15 else size
