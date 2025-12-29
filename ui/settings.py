@@ -169,38 +169,36 @@ class SettingsPage(ft.Container):
         for plugin_type in PLUGIN_REGISTRY:
             info = self.plugin_mgr.get_plugin_info(plugin_type)
             if info:
-                # 使用自定义布局替代ListTile，避免Web模式下的显示问题
+                # 使用 TextButton 包装，避免渲染问题
                 buttons.append(
-                    ft.Container(
-                        content=ft.Row(
-                            controls=[
-                                ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
-                                ft.Column(
-                                    controls=[
-                                        ft.Text(
-                                            info["display_name"],
-                                            size=14,
-                                            weight=ft.FontWeight.W_500,
-                                            color=ft.Colors.WHITE,
-                                        ),
-                                        ft.Text(
-                                            f"需要: {', '.join(info['required_credentials'])}",
-                                            size=12,
-                                            color=ft.Colors.WHITE_54,
-                                        ),
-                                    ],
-                                    spacing=2,
-                                    expand=True,
-                                ),
-                            ],
-                            spacing=12,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ft.TextButton(
+                        content=ft.Container(
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
+                                    ft.Column(
+                                        controls=[
+                                            ft.Text(
+                                                info["display_name"],
+                                                size=14,
+                                                weight=ft.FontWeight.W_500,
+                                            ),
+                                            ft.Text(
+                                                f"需要: {', '.join(info['required_credentials'])}",
+                                                size=12,
+                                                color=ft.Colors.WHITE54,
+                                            ),
+                                        ],
+                                        spacing=2,
+                                        alignment=ft.MainAxisAlignment.CENTER,
+                                    ),
+                                ],
+                                spacing=12,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            padding=ft.padding.symmetric(horizontal=8, vertical=4),
                         ),
-                        padding=12,
-                        border_radius=8,
-                        ink=True,
                         on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
-                        on_hover=lambda e: self._on_item_hover(e),
                     )
                 )
 
@@ -208,7 +206,12 @@ class SettingsPage(ft.Container):
             modal=True,
             title=ft.Text("选择服务类型", size=18, weight=ft.FontWeight.BOLD),
             content=ft.Container(
-                content=ft.Column(controls=buttons, scroll=ft.ScrollMode.AUTO, spacing=4),
+                content=ft.Column(
+                    controls=buttons,
+                    scroll=ft.ScrollMode.AUTO,
+                    spacing=4,
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
                 width=420,
                 height=350,
             ),
@@ -223,14 +226,6 @@ class SettingsPage(ft.Container):
         self.app_page.overlay.append(dialog)
         dialog.open = True
         self.app_page.update()
-
-    def _on_item_hover(self, e: ft.ControlEvent) -> None:
-        """处理列表项悬停效果"""
-        if e.data == "true":
-            e.control.bgcolor = ft.Colors.with_opacity(0.1, ft.Colors.WHITE)
-        else:
-            e.control.bgcolor = None
-        e.control.update()
 
     def _on_plugin_selected(self, e: ft.ControlEvent, plugin_type: str) -> None:
         """选择插件类型后"""
