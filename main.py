@@ -144,5 +144,14 @@ def main(page: ft.Page) -> None:
 
 
 if __name__ == "__main__":
-    # 使用浏览器模式预览，方便在远程/无图形界面环境下调试
-    ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550)
+    # 检测是否为打包环境
+    is_frozen = getattr(sys, 'frozen', False)
+    
+    if is_frozen:
+        # 打包后使用原生窗口模式
+        ft.app(target=main)
+    else:
+        # 开发环境：可选择 Web 模式方便调试
+        # 如需原生窗口，改为: ft.app(target=main)
+        ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
+
