@@ -4,6 +4,20 @@ CloudMonitor Pro - 应用入口
 多云平台与大模型服务监控桌面应用。
 """
 
+import io
+import os
+import sys
+
+# 修复 Windows 打包后 console=False 导致 sys.stdout/stderr 为 None 的问题
+# 这会导致 uvicorn/logging 模块调用 isatty() 时报错
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+
+# 禁用不必要的日志输出
+os.environ.setdefault("FLET_LOG_LEVEL", "warning")
+
 import asyncio
 
 import flet as ft
