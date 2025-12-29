@@ -7,9 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.config_mgr import ConfigManager
+from core.models import MetricData, MonitorResult
 from core.plugin_mgr import PLUGIN_REGISTRY, PluginManager, register_plugin
 from core.security import SecurityManager
-from plugins.interface import BaseMonitor, KPIData, MonitorResult, MonitorStatus
+from plugins.interface import BaseMonitor
 
 
 # 创建测试用插件
@@ -17,8 +18,16 @@ class MockMonitor(BaseMonitor):
     """测试用 Mock 插件"""
 
     @property
+    def plugin_id(self) -> str:
+        return "mock_service"
+
+    @property
     def display_name(self) -> str:
         return "Mock Service"
+
+    @property
+    def provider_name(self) -> str:
+        return "Mock"
 
     @property
     def icon(self) -> str:
@@ -29,11 +38,9 @@ class MockMonitor(BaseMonitor):
         return ["api_key"]
 
     async def fetch_data(self) -> MonitorResult:
-        return MonitorResult(
-            status=MonitorStatus.ONLINE,
-            kpi=KPIData(label="测试", value="100"),
-            details=[],
-        )
+        return self._create_success_result([
+            MetricData(label="测试", value="100", status="normal")
+        ])
 
     def render_card(self, data: MonitorResult) -> MagicMock:
         return MagicMock()

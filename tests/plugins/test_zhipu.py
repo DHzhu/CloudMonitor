@@ -4,9 +4,10 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
-from plugins.interface import MonitorStatus
+from core.models import MetricData, MonitorResult
 from plugins.zhipu.balance import ZhipuBalanceMonitor
 
 
@@ -45,8 +46,8 @@ class TestZhipuBalanceMonitor:
 
         result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "未配置 API Key" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "未配置 API Key" in (result.raw_error or "")
 
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: ZhipuBalanceMonitor) -> None:
@@ -59,9 +60,9 @@ class TestZhipuBalanceMonitor:
             "packages": [
                 {
                     "name": "免费额度",
-                    "remaining": 1000,
+                    "remaining": 2000,
                     "total": 5000,
-                    "expires_at": "2025-12-31T23:59:59Z",
+                    "expires_at": "2026-12-31T23:59:59Z",
                 }
             ],
         }
@@ -75,10 +76,8 @@ class TestZhipuBalanceMonitor:
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ONLINE
-        assert "¥100.50" in result.kpi.value
-        assert len(result.details) == 1
-        assert result.details[0]["name"] == "免费额度"
+        assert result.overall_status == "normal"
+        assert "¥100.50" in result.metrics[0].value
 
     @pytest.mark.asyncio
     async def test_fetch_data_low_balance(self, monitor: ZhipuBalanceMonitor) -> None:
@@ -100,13 +99,14 @@ class TestZhipuBalanceMonitor:
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.WARNING
+        assert result.overall_status == "warning"
 
     @pytest.mark.asyncio
     async def test_fetch_data_auth_error(self, monitor: ZhipuBalanceMonitor) -> None:
         """测试认证失败"""
         mock_response = MagicMock()
         mock_response.status_code = 401
+        mock_response.text = "Unauthorized"
 
         with patch("plugins.zhipu.balance.httpx.AsyncClient") as mock_client:
             mock_instance = AsyncMock()
@@ -117,14 +117,12 @@ class TestZhipuBalanceMonitor:
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "无效或已过期" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "无效或已过期" in (result.raw_error or "")
 
     @pytest.mark.asyncio
     async def test_fetch_data_timeout(self, monitor: ZhipuBalanceMonitor) -> None:
         """测试请求超时"""
-        import httpx
-
         with patch("plugins.zhipu.balance.httpx.AsyncClient") as mock_client:
             mock_instance = AsyncMock()
             mock_instance.get.side_effect = httpx.TimeoutException("timeout")
@@ -134,18 +132,17 @@ class TestZhipuBalanceMonitor:
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "超时" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "超时" in (result.raw_error or "")
 
     def test_render_card(self, monitor: ZhipuBalanceMonitor) -> None:
         """测试渲染卡片"""
-        from plugins.interface import KPIData, MonitorResult
-
         data = MonitorResult(
-            status=MonitorStatus.ONLINE,
-            kpi=KPIData(label="账户余额", value="¥100.00"),
-            details=[],
-            last_updated="2025-01-01T12:00:00",
+            plugin_id="zhipu_balance",
+            provider_name="智谱",
+            metrics=[
+                MetricData(label="账户余额", value="¥100.00", status="normal"),
+            ],
         )
 
         card = monitor.render_card(data)

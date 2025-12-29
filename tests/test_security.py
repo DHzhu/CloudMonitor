@@ -2,8 +2,6 @@
 安全管理器单元测试
 """
 
-
-
 from core.security import SecurityManager
 
 
@@ -59,9 +57,7 @@ class TestSecurityManager:
         security_mgr.set_credential("service1", "api_key", "key1")
         security_mgr.set_credential("service1", "secret_key", "secret1")
 
-        result = security_mgr.delete_all_credentials(
-            "service1", ["api_key", "secret_key"]
-        )
+        result = security_mgr.delete_all_credentials("service1", ["api_key", "secret_key"])
         assert result is True
 
         assert security_mgr.get_credential("service1", "api_key") is None

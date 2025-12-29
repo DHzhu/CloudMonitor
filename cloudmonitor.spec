@@ -32,6 +32,10 @@ a = Analysis(
         'core.config_mgr',
         'core.plugin_mgr',
         'core.security',
+        'core.models',
+        'core.event_bus',
+        'core.cache_mgr',
+        'core.thread_utils',
         # UI 模块
         'ui.dashboard',
         'ui.settings',

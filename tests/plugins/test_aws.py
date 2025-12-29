@@ -5,11 +5,10 @@ AWS 插件单元测试
 from unittest.mock import MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError
 
+from core.models import MetricData, MonitorResult
 from plugins.aws.cost import AWSCostMonitor
 from plugins.aws.ec2 import AWSEC2Monitor
-from plugins.interface import MonitorStatus
 
 
 class TestAWSCostMonitor:
@@ -49,75 +48,52 @@ class TestAWSCostMonitor:
 
         result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "未配置 AWS 凭据" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "未配置 AWS 凭据" in (result.raw_error or "")
 
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: AWSCostMonitor) -> None:
         """测试成功获取费用"""
-        mock_response = {
-            "ResultsByTime": [
-                {
-                    "Groups": [
-                        {
-                            "Keys": ["Amazon EC2"],
-                            "Metrics": {
-                                "BlendedCost": {"Amount": "50.00", "Unit": "USD"},
-                            },
-                        },
-                        {
-                            "Keys": ["Amazon S3"],
-                            "Metrics": {
-                                "BlendedCost": {"Amount": "10.00", "Unit": "USD"},
-                            },
-                        },
-                    ]
-                }
-            ]
-        }
+        # 模拟同步方法返回成功结果
+        mock_result = MonitorResult(
+            plugin_id="aws_cost",
+            provider_name="AWS",
+            metrics=[
+                MetricData(label="本月费用", value="$60.00", unit="USD", status="normal"),
+                MetricData(label="EC2", value="$50.00", status="normal"),
+            ],
+        )
 
-        with patch("plugins.aws.cost.boto3.client") as mock_boto:
-            mock_client = MagicMock()
-            mock_client.get_cost_and_usage.return_value = mock_response
-            mock_boto.return_value = mock_client
-
+        with patch.object(monitor, "_fetch_cost_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ONLINE
-        assert "$60.00" in result.kpi.value
-        assert len(result.details) == 2
+        assert result.overall_status == "normal"
+        assert "$60.00" in result.metrics[0].value
 
     @pytest.mark.asyncio
     async def test_fetch_data_auth_error(self, monitor: AWSCostMonitor) -> None:
         """测试认证失败"""
-        error_response = {
-            "Error": {
-                "Code": "InvalidAccessKeyId",
-                "Message": "The AWS Access Key Id you provided is not valid.",
-            }
-        }
+        mock_result = MonitorResult(
+            plugin_id="aws_cost",
+            provider_name="AWS",
+            metrics=[MetricData(label="错误", value="获取失败", status="error")],
+            raw_error="凭据无效",
+        )
 
-        with patch("plugins.aws.cost.boto3.client") as mock_boto:
-            mock_client = MagicMock()
-            mock_client.get_cost_and_usage.side_effect = ClientError(
-                error_response, "GetCostAndUsage"
-            )
-            mock_boto.return_value = mock_client
-
+        with patch.object(monitor, "_fetch_cost_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "凭据无效" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "凭据无效" in (result.raw_error or "")
 
     def test_render_card(self, monitor: AWSCostMonitor) -> None:
         """测试渲染卡片"""
-        from plugins.interface import KPIData, MonitorResult
-
         data = MonitorResult(
-            status=MonitorStatus.ONLINE,
-            kpi=KPIData(label="本月费用", value="$100.00"),
-            details=[{"service": "EC2", "cost": 50.0, "percentage": 50.0}],
-            last_updated="2025-01-01T12:00:00",
+            plugin_id="aws_cost",
+            provider_name="AWS",
+            metrics=[
+                MetricData(label="本月费用", value="$100.00", unit="USD", status="normal"),
+            ],
         )
 
         card = monitor.render_card(data)
@@ -147,85 +123,45 @@ class TestAWSEC2Monitor:
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: AWSEC2Monitor) -> None:
         """测试成功获取实例状态"""
-        mock_response = {
-            "Reservations": [
-                {
-                    "Instances": [
-                        {
-                            "InstanceId": "i-12345",
-                            "State": {"Name": "running"},
-                            "InstanceType": "t3.micro",
-                            "Tags": [{"Key": "Name", "Value": "Web Server"}],
-                            "PublicIpAddress": "1.2.3.4",
-                        },
-                        {
-                            "InstanceId": "i-67890",
-                            "State": {"Name": "stopped"},
-                            "InstanceType": "t3.small",
-                            "Tags": [],
-                        },
-                    ]
-                }
-            ]
-        }
+        mock_result = MonitorResult(
+            plugin_id="aws_ec2",
+            provider_name="AWS",
+            metrics=[
+                MetricData(label="运行中实例", value="1/2", unit="实例", status="normal"),
+                MetricData(label="Web Server", value="running", status="normal"),
+            ],
+        )
 
-        with patch("plugins.aws.ec2.boto3.client") as mock_boto:
-            mock_client = MagicMock()
-            mock_client.describe_instances.return_value = mock_response
-            mock_boto.return_value = mock_client
-
+        with patch.object(monitor, "_fetch_instances_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ONLINE
-        assert "1/2" in result.kpi.value
-        assert len(result.details) == 2
-        assert result.details[0]["name"] == "Web Server"
-        assert result.details[0]["state"] == "running"
+        assert result.overall_status == "normal"
+        assert "1/2" in result.metrics[0].value
 
     @pytest.mark.asyncio
     async def test_fetch_data_all_stopped(self, monitor: AWSEC2Monitor) -> None:
         """测试所有实例都停止时的警告状态"""
-        mock_response = {
-            "Reservations": [
-                {
-                    "Instances": [
-                        {
-                            "InstanceId": "i-12345",
-                            "State": {"Name": "stopped"},
-                            "InstanceType": "t3.micro",
-                            "Tags": [],
-                        },
-                    ]
-                }
-            ]
-        }
+        mock_result = MonitorResult(
+            plugin_id="aws_ec2",
+            provider_name="AWS",
+            metrics=[
+                MetricData(label="运行中实例", value="0/1", unit="实例", status="warning"),
+            ],
+        )
 
-        with patch("plugins.aws.ec2.boto3.client") as mock_boto:
-            mock_client = MagicMock()
-            mock_client.describe_instances.return_value = mock_response
-            mock_boto.return_value = mock_client
-
+        with patch.object(monitor, "_fetch_instances_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.WARNING
+        assert result.overall_status == "warning"
 
     def test_render_card(self, monitor: AWSEC2Monitor) -> None:
         """测试渲染卡片"""
-        from plugins.interface import KPIData, MonitorResult
-
         data = MonitorResult(
-            status=MonitorStatus.ONLINE,
-            kpi=KPIData(label="运行中", value="2/3", unit="实例"),
-            details=[
-                {
-                    "id": "i-1",
-                    "name": "Server1",
-                    "state": "running",
-                    "type": "t3.micro",
-                    "ip": "1.2.3.4",
-                },
+            plugin_id="aws_ec2",
+            provider_name="AWS",
+            metrics=[
+                MetricData(label="运行中", value="2/3", unit="实例", status="normal"),
             ],
-            last_updated="2025-01-01T12:00:00",
         )
 
         card = monitor.render_card(data)

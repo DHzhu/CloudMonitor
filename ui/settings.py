@@ -134,9 +134,7 @@ class SettingsPage(ft.Container):
                     ft.Switch(
                         value=service.enabled,
                         active_color=ft.Colors.GREEN_400,
-                        on_change=lambda e, sid=service.service_id: self._on_toggle_service(
-                            e, sid
-                        ),
+                        on_change=lambda e, sid=service.service_id: self._on_toggle_service(e, sid),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.DELETE_OUTLINE,
@@ -171,12 +169,38 @@ class SettingsPage(ft.Container):
         for plugin_type in PLUGIN_REGISTRY:
             info = self.plugin_mgr.get_plugin_info(plugin_type)
             if info:
+                # 使用自定义布局替代ListTile，避免Web模式下的显示问题
                 buttons.append(
-                    ft.ListTile(
-                        leading=ft.Icon(info["icon"]),
-                        title=ft.Text(info["display_name"]),
-                        subtitle=ft.Text(f"需要: {', '.join(info['required_credentials'])}"),
+                    ft.Container(
+                        content=ft.Row(
+                            controls=[
+                                ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
+                                ft.Column(
+                                    controls=[
+                                        ft.Text(
+                                            info["display_name"],
+                                            size=14,
+                                            weight=ft.FontWeight.W_500,
+                                            color=ft.Colors.WHITE,
+                                        ),
+                                        ft.Text(
+                                            f"需要: {', '.join(info['required_credentials'])}",
+                                            size=12,
+                                            color=ft.Colors.WHITE_54,
+                                        ),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                            ],
+                            spacing=12,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=12,
+                        border_radius=8,
+                        ink=True,
                         on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
+                        on_hover=lambda e: self._on_item_hover(e),
                     )
                 )
 
@@ -184,9 +208,9 @@ class SettingsPage(ft.Container):
             modal=True,
             title=ft.Text("选择服务类型", size=18, weight=ft.FontWeight.BOLD),
             content=ft.Container(
-                content=ft.Column(controls=buttons, scroll=ft.ScrollMode.AUTO),
-                width=400,
-                height=300,
+                content=ft.Column(controls=buttons, scroll=ft.ScrollMode.AUTO, spacing=4),
+                width=420,
+                height=350,
             ),
             actions=[
                 ft.TextButton(
@@ -199,6 +223,14 @@ class SettingsPage(ft.Container):
         self.app_page.overlay.append(dialog)
         dialog.open = True
         self.app_page.update()
+
+    def _on_item_hover(self, e: ft.ControlEvent) -> None:
+        """处理列表项悬停效果"""
+        if e.data == "true":
+            e.control.bgcolor = ft.Colors.with_opacity(0.1, ft.Colors.WHITE)
+        else:
+            e.control.bgcolor = None
+        e.control.update()
 
     def _on_plugin_selected(self, e: ft.ControlEvent, plugin_type: str) -> None:
         """选择插件类型后"""
@@ -254,9 +286,7 @@ class SettingsPage(ft.Container):
         status = "启用" if enabled else "禁用"
         SnackBar.show(self.app_page, f"服务已{status}")
 
-    def _on_delete_service(
-        self, e: ft.ControlEvent, service_id: str, alias: str
-    ) -> None:
+    def _on_delete_service(self, e: ft.ControlEvent, service_id: str, alias: str) -> None:
         """删除服务"""
         dialog = ConfirmDialog(
             title="删除服务",

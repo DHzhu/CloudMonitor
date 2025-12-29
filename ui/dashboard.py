@@ -1,7 +1,7 @@
 """
 仪表盘页面
 
-显示所有监控服务的状态概览，支持自动刷新。
+显示所有监控服务的状态概览，支持自动刷新、骨架屏加载和离线缓存。
 """
 
 import asyncio
@@ -9,6 +9,8 @@ from typing import Any
 
 import flet as ft
 
+from core.cache_mgr import get_cache_manager
+from core.event_bus import Event, EventType, get_event_bus
 from core.plugin_mgr import PluginManager
 from plugins.interface import BaseMonitor
 from ui.components.card import EmptyCard, MonitorCard
@@ -28,7 +30,11 @@ class DashboardPage(ft.Container):
     """
     仪表盘页面
 
-    展示所有启用的监控服务状态，支持自动刷新。
+    展示所有启用的监控服务状态，支持：
+    - 骨架屏加载效果
+    - SQLite 离线缓存与秒开
+    - 自动刷新
+    - 并发数据获取
     """
 
     def __init__(
@@ -40,6 +46,10 @@ class DashboardPage(ft.Container):
         self.app_page = page
         self.cards: dict[str, MonitorCard] = {}
         self.monitors: list[BaseMonitor] = []
+
+        # 缓存和事件总线
+        self._cache_mgr = get_cache_manager()
+        self._event_bus = get_event_bus()
 
         # 自动刷新配置
         self._auto_refresh_interval: int = 300  # 默认 5 分钟
@@ -80,7 +90,7 @@ class DashboardPage(ft.Container):
                 ft.dropdown.Option(str(interval), text=label)
                 for interval, label in REFRESH_INTERVALS
             ],
-            on_change=self._on_interval_change,
+            on_select=self._on_interval_change,
             width=130,
             height=45,
             text_size=12,
@@ -109,14 +119,20 @@ class DashboardPage(ft.Container):
                 on_add=self._on_go_to_settings,
             )
 
-        # 创建卡片
+        # 加载缓存数据
+        cached_results = self._cache_mgr.load_all()
+
+        # 创建卡片，初始显示缓存或骨架屏
         cards = []
         for monitor in self.monitors:
+            cached_result = cached_results.get(monitor.service_id)
+
             card = MonitorCard(
                 title=monitor.alias or monitor.display_name,
                 icon=monitor.icon,
-                data=monitor.last_result,
+                data=cached_result,  # 优先使用缓存
                 accent_color=self._get_accent_color(monitor),
+                show_skeleton=(cached_result is None),  # 无缓存时显示骨架屏
             )
             self.cards[monitor.service_id] = card
             cards.append(card)
@@ -148,22 +164,36 @@ class DashboardPage(ft.Container):
             return ft.Colors.BLUE_400
 
     async def _refresh_all_async(self) -> None:
-        """异步刷新所有服务"""
+        """异步并发刷新所有服务"""
         if self._is_refreshing:
             return
 
         self._is_refreshing = True
+
+        # 发布刷新开始事件
+        await self._event_bus.publish(Event(type=EventType.REFRESH_STARTED))
+
+        # 显示所有卡片的加载状态
+        for card in self.cards.values():
+            card.show_loading()
+        self.app_page.update()
+
+        # 并发刷新所有服务
         tasks = []
         for monitor in self.monitors:
             if monitor.enabled:
                 tasks.append(self._refresh_monitor(monitor))
 
         await asyncio.gather(*tasks)
+
         self._is_refreshing = False
         self.app_page.update()
 
+        # 发布刷新完成事件
+        await self._event_bus.publish(Event(type=EventType.REFRESH_COMPLETED))
+
     async def _refresh_monitor(self, monitor: BaseMonitor) -> None:
-        """刷新单个监控服务"""
+        """刷新单个监控服务并更新缓存"""
         try:
             result = await monitor.refresh()
 
@@ -171,8 +201,23 @@ class DashboardPage(ft.Container):
             if monitor.service_id in self.cards:
                 self.cards[monitor.service_id].update_data(result)
 
+            # 更新缓存
+            self._cache_mgr.save(monitor.service_id, result)
+
+            # 发布缓存更新事件
+            await self._event_bus.publish(
+                Event(type=EventType.CACHE_UPDATED, data={"service_id": monitor.service_id})
+            )
+
         except Exception as e:
             print(f"Error refreshing {monitor.service_id}: {e}")
+            # 发布刷新失败事件
+            await self._event_bus.publish(
+                Event(
+                    type=EventType.REFRESH_FAILED,
+                    data={"service_id": monitor.service_id, "error": str(e)},
+                )
+            )
 
     async def _auto_refresh_loop(self) -> None:
         """自动刷新循环"""
@@ -230,7 +275,12 @@ class DashboardPage(ft.Container):
         self.content = self._build_content()
 
     async def initial_load(self) -> None:
-        """初始加载数据"""
+        """
+        初始加载数据
+
+        优先从缓存加载（秒开），然后后台静默刷新。
+        """
+        # 缓存已在 _build_grid 中加载，这里启动后台刷新
         await self._refresh_all_async()
         # 启动自动刷新
         self._start_auto_refresh()

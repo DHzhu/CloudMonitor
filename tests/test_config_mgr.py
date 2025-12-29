@@ -2,8 +2,6 @@
 配置管理器单元测试
 """
 
-
-
 from core.config_mgr import ConfigManager
 
 

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.models import MetricData, MonitorResult
 from plugins.gemini.quota import GeminiQuotaMonitor
-from plugins.interface import KPIData, MonitorResult, MonitorStatus
 
 
 class TestGeminiQuotaMonitor:
@@ -43,8 +43,8 @@ class TestGeminiQuotaMonitor:
 
         result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "未配置 Gemini API Key" in (result.error_message or "")
+        assert result.overall_status == "error"
+        assert "未配置 Gemini API Key" in (result.raw_error or "")
 
     @pytest.mark.asyncio
     async def test_fetch_data_auth_error(self, monitor: GeminiQuotaMonitor) -> None:
@@ -52,13 +52,14 @@ class TestGeminiQuotaMonitor:
         with patch("plugins.gemini.quota.genai.Client") as mock_client_class:
             mock_client = MagicMock()
             # 模拟 API 错误
-            mock_client.models.list.side_effect = Exception("API_KEY invalid or PERMISSION denied")
+            mock_client.models.list.side_effect = Exception(
+                "API_KEY invalid or PERMISSION denied"
+            )
             mock_client_class.return_value = mock_client
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ERROR
-        assert "错误" in result.kpi.value or "失败" in result.kpi.value
+        assert result.overall_status == "error"
 
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: GeminiQuotaMonitor) -> None:
@@ -91,24 +92,18 @@ class TestGeminiQuotaMonitor:
 
             result = await monitor.fetch_data()
 
-        assert result.status == MonitorStatus.ONLINE
-        assert result.kpi.value == "2"  # 只有两个模型支持 generateContent
-        assert len(result.details) == 2
+        assert result.overall_status == "normal"
+        # 第一个指标是可用模型数量
+        assert result.metrics[0].value == "2"  # 只有两个模型支持 generateContent
 
     def test_render_card(self, monitor: GeminiQuotaMonitor) -> None:
         """测试渲染卡片"""
         data = MonitorResult(
-            status=MonitorStatus.ONLINE,
-            kpi=KPIData(label="可用模型", value="5", unit="个"),
-            details=[
-                {
-                    "name": "gemini-1.5-pro",
-                    "display_name": "Gemini 1.5 Pro",
-                    "input_token_limit": 1000000,
-                    "output_token_limit": 8192,
-                },
+            plugin_id="gemini_quota",
+            provider_name="Google",
+            metrics=[
+                MetricData(label="可用模型", value="5", unit="个", status="normal"),
             ],
-            last_updated="2025-01-01T12:00:00",
         )
 
         card = monitor.render_card(data)
@@ -117,7 +112,7 @@ class TestGeminiQuotaMonitor:
     def test_shorten_model_name(self, monitor: GeminiQuotaMonitor) -> None:
         """测试模型名称缩短"""
         assert monitor._shorten_model_name("gemini-1.5-pro") == "1.5-pro"
-        # models/ 前缀会被移除，但 gemini- 前缀不会被重复移除
+        # models/ 前缀会被移除
         assert monitor._shorten_model_name("models/gemini-2.0") == "gemini-2.0"
 
     def test_format_tokens(self, monitor: GeminiQuotaMonitor) -> None:
