@@ -2,7 +2,7 @@
 AWS 插件单元测试
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

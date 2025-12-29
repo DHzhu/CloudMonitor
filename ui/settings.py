@@ -165,56 +165,50 @@ class SettingsPage(ft.Container):
         # 获取所有可用插件
         self.plugin_mgr.discover_plugins()
 
+        # 使用最简单的结构：ListView + ElevatedButton
         buttons = []
         for plugin_type in PLUGIN_REGISTRY:
             info = self.plugin_mgr.get_plugin_info(plugin_type)
             if info:
-                # 使用 TextButton 包装，避免渲染问题
-                buttons.append(
-                    ft.TextButton(
-                        content=ft.Container(
-                            content=ft.Row(
+                display_name = info["display_name"]
+                creds = ", ".join(info["required_credentials"])
+
+                btn = ft.ElevatedButton(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(info["icon"], size=24),
+                            ft.Column(
                                 controls=[
-                                    ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
-                                    ft.Column(
-                                        controls=[
-                                            ft.Text(
-                                                info["display_name"],
-                                                size=14,
-                                                weight=ft.FontWeight.W_500,
-                                            ),
-                                            ft.Text(
-                                                f"需要: {', '.join(info['required_credentials'])}",
-                                                size=12,
-                                                color=ft.Colors.WHITE54,
-                                            ),
-                                        ],
-                                        spacing=2,
-                                        alignment=ft.MainAxisAlignment.CENTER,
-                                    ),
+                                    ft.Text(display_name, size=14, weight=ft.FontWeight.W_500),
+                                    ft.Text(f"需要: {creds}", size=11, color=ft.Colors.WHITE54),
                                 ],
-                                spacing=12,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=0,
+                                alignment=ft.MainAxisAlignment.CENTER,
                             ),
-                            padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                        ),
-                        on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
-                    )
+                        ],
+                        spacing=10,
+                        alignment=ft.MainAxisAlignment.START,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    width=380,
+                    height=55,
+                    on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
                 )
+                buttons.append(btn)
+
+        # 直接使用 ListView，不嵌套 Container
+        content_list = ft.ListView(
+            controls=buttons,
+            spacing=8,
+            padding=10,
+            width=400,
+            height=300,
+        )
 
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("选择服务类型", size=18, weight=ft.FontWeight.BOLD),
-            content=ft.Container(
-                content=ft.Column(
-                    controls=buttons,
-                    scroll=ft.ScrollMode.AUTO,
-                    spacing=4,
-                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-                ),
-                width=420,
-                height=350,
-            ),
+            content=content_list,
             actions=[
                 ft.TextButton(
                     "取消",

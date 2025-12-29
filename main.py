@@ -146,7 +146,7 @@ def main(page: ft.Page) -> None:
 if __name__ == "__main__":
     # 检测是否为打包环境
     is_frozen = getattr(sys, 'frozen', False)
-    
+
     if is_frozen:
         # 打包后使用原生窗口模式
         ft.app(target=main)
