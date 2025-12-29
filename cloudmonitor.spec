@@ -20,8 +20,8 @@ a = Analysis(
     pathex=[str(project_root)],
     binaries=[],
     datas=[
-        # 如有资源文件可在此添加
-        # ('assets', 'assets'),
+        # 资源文件（图标等）
+        ('assets', 'assets'),
     ],
     hiddenimports=[
         # Flet 依赖
