@@ -165,50 +165,58 @@ class SettingsPage(ft.Container):
         # 获取所有可用插件
         self.plugin_mgr.discover_plugins()
 
-        # 使用最简单的结构：ListView + ElevatedButton
-        buttons = []
+        items = []
         for plugin_type in PLUGIN_REGISTRY:
             info = self.plugin_mgr.get_plugin_info(plugin_type)
             if info:
-                display_name = info["display_name"]
-                creds = ", ".join(info["required_credentials"])
-
-                btn = ft.ElevatedButton(
+                # 使用 Container 模拟按钮，解决兼容性问题
+                item = ft.Container(
                     content=ft.Row(
                         controls=[
-                            ft.Icon(info["icon"], size=24),
+                            ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
                             ft.Column(
                                 controls=[
-                                    ft.Text(display_name, size=14, weight=ft.FontWeight.W_500),
-                                    ft.Text(f"需要: {creds}", size=11, color=ft.Colors.WHITE54),
+                                    ft.Text(
+                                        info["display_name"],
+                                        size=14,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=ft.Colors.WHITE,
+                                    ),
+                                    ft.Text(
+                                        f"需要: {', '.join(info['required_credentials'])}",
+                                        size=12,
+                                        color=ft.Colors.WHITE_54,
+                                    ),
                                 ],
-                                spacing=0,
+                                spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
                             ),
                         ],
-                        spacing=10,
-                        alignment=ft.MainAxisAlignment.START,
+                        spacing=16,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    width=380,
-                    height=55,
+                    padding=ft.padding.all(12),
+                    border_radius=8,
+                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
+                    # ink=True, # 暂时移除 ink 以排除更多干扰
                     on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
+                    animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+                    on_hover=lambda e: self._on_select_item_hover(e),
                 )
-                buttons.append(btn)
-
-        # 直接使用 ListView，不嵌套 Container
-        content_list = ft.ListView(
-            controls=buttons,
-            spacing=8,
-            padding=10,
-            width=400,
-            height=300,
-        )
+                items.append(item)
 
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("选择服务类型", size=18, weight=ft.FontWeight.BOLD),
-            content=content_list,
+            content=ft.Container(
+                content=ft.ListView(
+                    controls=items,
+                    spacing=8,
+                    padding=10,
+                ),
+                width=420,
+                height=350,
+            ),
             actions=[
                 ft.TextButton(
                     "取消",
@@ -220,6 +228,15 @@ class SettingsPage(ft.Container):
         self.app_page.overlay.append(dialog)
         dialog.open = True
         self.app_page.update()
+
+    def _on_select_item_hover(self, e: ft.ControlEvent) -> None:
+        """处理选择项悬停效果"""
+        e.control.bgcolor = (
+            ft.Colors.with_opacity(0.2, ft.Colors.WHITE)
+            if e.data == "true"
+            else ft.Colors.with_opacity(0.1, ft.Colors.WHITE)
+        )
+        e.control.update()
 
     def _on_plugin_selected(self, e: ft.ControlEvent, plugin_type: str) -> None:
         """选择插件类型后"""
