@@ -209,13 +209,14 @@ class SettingsPage(ft.Container):
             modal=True,
             title=ft.Text("选择服务类型", size=18, weight=ft.FontWeight.BOLD),
             content=ft.Container(
-                content=ft.ListView(
+                content=ft.Column(
                     controls=items,
+                    scroll=ft.ScrollMode.AUTO,
                     spacing=8,
-                    padding=10,
                 ),
                 width=420,
                 height=350,
+                padding=10,
             ),
             actions=[
                 ft.TextButton(
