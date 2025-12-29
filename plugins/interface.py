@@ -79,8 +79,13 @@ class BaseMonitor(ABC):
     @property
     @abstractmethod
     def icon(self) -> str:
-        """返回服务图标名称"""
+        """返回服务图标名称（Material Icon 名称）"""
         ...
+
+    @property
+    def icon_path(self) -> str | None:
+        """返回服务图标文件路径（相对于 assets 目录），如果有的话"""
+        return None
 
     @property
     @abstractmethod

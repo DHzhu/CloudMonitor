@@ -38,6 +38,10 @@ class GeminiQuotaMonitor(BaseMonitor):
         return "auto_awesome"
 
     @property
+    def icon_path(self) -> str:
+        return "icons/gemini.png"
+
+    @property
     def required_credentials(self) -> list[str]:
         return ["api_key"]
 

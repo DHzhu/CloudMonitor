@@ -39,6 +39,10 @@ class AzureCostMonitor(BaseMonitor):
         return "attach_money"
 
     @property
+    def icon_path(self) -> str:
+        return "icons/azure.png"
+
+    @property
     def required_credentials(self) -> list[str]:
         return ["tenant_id", "client_id", "client_secret", "subscription_id"]
 

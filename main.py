@@ -149,9 +149,8 @@ if __name__ == "__main__":
 
     if is_frozen:
         # 打包后使用原生窗口模式
-        ft.app(target=main)
+        ft.run(main, assets_dir="assets")
     else:
         # 开发环境：可选择 Web 模式方便调试
-        # 如需原生窗口，改为: ft.app(target=main)
-        ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
-
+        # 如需原生窗口，改为: ft.run(main)
+        ft.run(main, view=ft.AppView.WEB_BROWSER, port=8550, assets_dir="assets")

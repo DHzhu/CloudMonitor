@@ -130,6 +130,7 @@ class PluginManager:
             "type": plugin_type,
             "display_name": temp_instance.display_name,
             "icon": temp_instance.icon,
+            "icon_path": temp_instance.icon_path,
             "required_credentials": temp_instance.required_credentials,
         }
 

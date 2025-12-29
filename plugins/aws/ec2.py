@@ -37,6 +37,10 @@ class AWSEC2Monitor(BaseMonitor):
         return "dns"
 
     @property
+    def icon_path(self) -> str:
+        return "icons/aws.png"
+
+    @property
     def required_credentials(self) -> list[str]:
         return ["access_key_id", "secret_access_key", "region"]
 

@@ -169,39 +169,26 @@ class SettingsPage(ft.Container):
         for plugin_type in PLUGIN_REGISTRY:
             info = self.plugin_mgr.get_plugin_info(plugin_type)
             if info:
-                # 使用 Container 模拟按钮，解决兼容性问题
-                item = ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            ft.Icon(info["icon"], size=28, color=ft.Colors.BLUE_400),
-                            ft.Column(
-                                controls=[
-                                    ft.Text(
-                                        info["display_name"],
-                                        size=14,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=ft.Colors.WHITE,
-                                    ),
-                                    ft.Text(
-                                        f"需要: {', '.join(info['required_credentials'])}",
-                                        size=12,
-                                        color=ft.Colors.WHITE_54,
-                                    ),
-                                ],
-                                spacing=2,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                        ],
-                        spacing=16,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                    padding=ft.padding.all(12),
-                    border_radius=8,
-                    bgcolor=ft.Colors.with_opacity(0.1, ft.Colors.WHITE),
-                    # ink=True, # 暂时移除 ink 以排除更多干扰
+                # 优先使用图片图标，否则回退到 Material Icon
+                icon_path = info.get("icon_path")
+                if icon_path:
+                    leading = ft.Image(
+                        src=icon_path,
+                        width=32,
+                        height=32,
+                        fit=ft.BoxFit.CONTAIN,
+                    )
+                else:
+                    icon_name = info["icon"]
+                    icon_value = getattr(ft.Icons, icon_name.upper(), ft.Icons.CLOUD)
+                    leading = ft.Icon(icon_value, color=ft.Colors.BLUE_400)
+
+                # 使用 ListTile - 经测试在 Web 模式下可以正确渲染
+                item = ft.ListTile(
+                    leading=leading,
+                    title=ft.Text(info["display_name"]),
+                    subtitle=ft.Text(f"需要: {', '.join(info['required_credentials'])}"),
                     on_click=lambda e, pt=plugin_type: self._on_plugin_selected(e, pt),
-                    animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
-                    on_hover=lambda e: self._on_select_item_hover(e),
                 )
                 items.append(item)
 
@@ -212,11 +199,9 @@ class SettingsPage(ft.Container):
                 content=ft.Column(
                     controls=items,
                     scroll=ft.ScrollMode.AUTO,
-                    spacing=8,
                 ),
                 width=420,
                 height=350,
-                padding=10,
             ),
             actions=[
                 ft.TextButton(
@@ -229,15 +214,6 @@ class SettingsPage(ft.Container):
         self.app_page.overlay.append(dialog)
         dialog.open = True
         self.app_page.update()
-
-    def _on_select_item_hover(self, e: ft.ControlEvent) -> None:
-        """处理选择项悬停效果"""
-        e.control.bgcolor = (
-            ft.Colors.with_opacity(0.2, ft.Colors.WHITE)
-            if e.data == "true"
-            else ft.Colors.with_opacity(0.1, ft.Colors.WHITE)
-        )
-        e.control.update()
 
     def _on_plugin_selected(self, e: ft.ControlEvent, plugin_type: str) -> None:
         """选择插件类型后"""

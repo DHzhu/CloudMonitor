@@ -52,7 +52,7 @@ class DashboardPage(ft.Container):
         self._event_bus = get_event_bus()
 
         # 自动刷新配置
-        self._auto_refresh_interval: int = 300  # 默认 5 分钟
+        self._auto_refresh_interval: int = 0  # 默认关闭自动刷新
         self._auto_refresh_task: asyncio.Task[Any] | None = None
         self._is_refreshing: bool = False
 

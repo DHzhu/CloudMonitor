@@ -34,6 +34,10 @@ class MockMonitor(BaseMonitor):
         return "cloud"
 
     @property
+    def icon_path(self) -> str:
+        return "icons/mock.png"
+
+    @property
     def required_credentials(self) -> list[str]:
         return ["api_key"]
 
@@ -102,6 +106,7 @@ class TestPluginManager:
         assert info is not None
         assert info["type"] == "mock_service"
         assert info["display_name"] == "Mock Service"
+        assert info["icon_path"] == "icons/mock.png"
         assert info["required_credentials"] == ["api_key"]
 
     def test_add_service(self, plugin_mgr: PluginManager) -> None:

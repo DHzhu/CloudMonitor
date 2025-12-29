@@ -41,6 +41,10 @@ class ZhipuBalanceMonitor(BaseMonitor):
         return "smart_toy"
 
     @property
+    def icon_path(self) -> str:
+        return "icons/zhipu.png"
+
+    @property
     def required_credentials(self) -> list[str]:
         return ["api_key"]
 
