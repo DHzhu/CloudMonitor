@@ -179,3 +179,46 @@ class TestPluginManager:
 
         results = await plugin_mgr.refresh_all()
         assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_refresh_single_service(self, plugin_mgr: PluginManager) -> None:
+        """测试刷新单个服务"""
+        plugin_mgr._loaded = True
+        instance = plugin_mgr.add_service("mock_service", "服务1", {"api_key": "k1"})
+
+        assert instance is not None
+        result = await plugin_mgr.refresh_single_service(instance.service_id)
+        assert result is True
+
+        # 测试刷新不存在的服务
+        result = await plugin_mgr.refresh_single_service("nonexistent")
+        assert result is False
+
+    def test_update_service_credentials(self, plugin_mgr: PluginManager) -> None:
+        """测试更新服务凭据"""
+        plugin_mgr._loaded = True
+        instance = plugin_mgr.add_service("mock_service", "原始名称", {"api_key": "old_key"})
+
+        assert instance is not None
+        service_id = instance.service_id
+
+        # 更新别名和凭据
+        updated = plugin_mgr.update_service_credentials(
+            service_id=service_id,
+            alias="新名称",
+            credentials={"api_key": "new_key"},
+        )
+
+        assert updated is not None
+        assert updated.alias == "新名称"
+        assert updated.credentials.get("api_key") == "new_key"
+
+    def test_update_nonexistent_service(self, plugin_mgr: PluginManager) -> None:
+        """测试更新不存在的服务"""
+        plugin_mgr._loaded = True
+        result = plugin_mgr.update_service_credentials(
+            service_id="nonexistent",
+            alias="新名称",
+        )
+        assert result is None
+

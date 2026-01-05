@@ -12,6 +12,7 @@ class CredentialDialog(ft.AlertDialog):
     凭据输入对话框
 
     用于安全地输入 API Key 等敏感信息。
+    支持新增和编辑两种模式。
     """
 
     def __init__(
@@ -21,10 +22,14 @@ class CredentialDialog(ft.AlertDialog):
         required_fields: list[str] | None = None,
         on_save: ft.ControlEvent | None = None,
         on_cancel: ft.ControlEvent | None = None,
+        initial_values: dict[str, str] | None = None,
+        is_edit_mode: bool = False,
     ) -> None:
         self.plugin_type = plugin_type
         self.required_fields = required_fields or []
         self.on_save_callback = on_save
+        self.initial_values = initial_values or {}
+        self.is_edit_mode = is_edit_mode
         self.field_refs: dict[str, ft.TextField] = {}
 
         # 创建字段
@@ -56,11 +61,26 @@ class CredentialDialog(ft.AlertDialog):
         """构建输入字段"""
         fields = []
 
+        # 编辑模式提示
+        if self.is_edit_mode:
+            fields.append(
+                ft.Container(
+                    content=ft.Text(
+                        "出于安全考虑，凭据需要重新输入",
+                        size=12,
+                        color=ft.Colors.ORANGE_300,
+                        italic=True,
+                    ),
+                    padding=ft.Padding.only(bottom=8),
+                )
+            )
+
         # 别名字段
         alias_field = ft.TextField(
             label="别名",
             hint_text="例如：个人账户",
             border_radius=8,
+            value=self.initial_values.get("alias", ""),
         )
         self.field_refs["alias"] = alias_field
         fields.append(alias_field)

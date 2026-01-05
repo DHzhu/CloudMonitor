@@ -4,6 +4,8 @@
 管理服务配置和凭据。
 """
 
+import asyncio
+
 import flet as ft
 
 from core.config_mgr import ConfigManager, ServiceConfig
@@ -139,6 +141,23 @@ class SettingsPage(ft.Container):
                         on_change=lambda e, sid=service.service_id: self._on_toggle_service(e, sid),
                     ),
                     ft.IconButton(
+                        icon=ft.Icons.REFRESH,
+                        icon_color=ft.Colors.BLUE_300,
+                        tooltip="刷新服务",
+                        on_click=lambda e, sid=service.service_id: (
+                            self._on_refresh_service(e, sid)
+                        ),
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.EDIT_OUTLINED,
+                        icon_color=ft.Colors.ORANGE_300,
+                        tooltip="编辑服务",
+                        on_click=lambda e,
+                            sid=service.service_id,
+                            alias=service.alias,
+                            pt=service.plugin_type: self._on_edit_service(e, sid, alias, pt),
+                    ),
+                    ft.IconButton(
                         icon=ft.Icons.DELETE_OUTLINE,
                         icon_color=ft.Colors.RED_300,
                         tooltip="删除服务",
@@ -261,6 +280,65 @@ class SettingsPage(ft.Container):
             SnackBar.show(self.app_page, "添加服务失败", is_error=True)
 
         # 关闭对话框
+        self._close_all_dialogs()
+
+    def _on_refresh_service(self, e: ft.ControlEvent, service_id: str) -> None:
+        """刷新单个服务"""
+        asyncio.create_task(self._refresh_service_async(service_id))
+
+    async def _refresh_service_async(self, service_id: str) -> None:
+        """异步刷新单个服务"""
+        SnackBar.show(self.app_page, "正在刷新...")
+        result = await self.plugin_mgr.refresh_single_service(service_id)
+        if result:
+            SnackBar.show(self.app_page, "服务刷新成功")
+        else:
+            SnackBar.show(self.app_page, "服务刷新失败", is_error=True)
+
+    def _on_edit_service(
+        self,
+        e: ft.ControlEvent,
+        service_id: str,
+        alias: str,
+        plugin_type: str,
+    ) -> None:
+        """编辑服务凭据"""
+        # 获取插件信息
+        info = self.plugin_mgr.get_plugin_info(plugin_type)
+        if not info:
+            return
+
+        # 显示编辑对话框
+        dialog = CredentialDialog(
+            title=f"编辑 {alias}",
+            plugin_type=plugin_type,
+            required_fields=info["required_credentials"],
+            on_save=lambda values: self._save_edit_service(service_id, values),
+            on_cancel=lambda e: self._close_dialog(e),
+            initial_values={"alias": alias},
+            is_edit_mode=True,
+        )
+
+        self.app_page.overlay.append(dialog)
+        dialog.open = True
+        self.app_page.update()
+
+    def _save_edit_service(self, service_id: str, values: dict[str, str]) -> None:
+        """保存编辑后的服务"""
+        alias = values.pop("alias", "")
+
+        instance = self.plugin_mgr.update_service_credentials(
+            service_id=service_id,
+            alias=alias if alias else None,
+            credentials=values if values else None,
+        )
+
+        if instance:
+            SnackBar.show(self.app_page, f"服务 '{alias}' 更新成功")
+            self.refresh()
+        else:
+            SnackBar.show(self.app_page, "更新服务失败", is_error=True)
+
         self._close_all_dialogs()
 
     def _on_toggle_service(self, e: ft.ControlEvent, service_id: str) -> None:

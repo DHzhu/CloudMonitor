@@ -297,3 +297,74 @@ class PluginManager:
                 except Exception as e:
                     print(f"Error refreshing service '{service_id}': {e}")
         return results
+
+    async def refresh_single_service(self, service_id: str) -> bool:
+        """
+        刷新单个服务的数据
+
+        Args:
+            service_id: 服务 ID
+
+        Returns:
+            bool: 是否刷新成功
+        """
+        instance = self._instances.get(service_id)
+        if instance is None:
+            return False
+
+        try:
+            await instance.refresh()
+            return True
+        except Exception as e:
+            print(f"Error refreshing service '{service_id}': {e}")
+            return False
+
+    def update_service_credentials(
+        self,
+        service_id: str,
+        alias: str | None = None,
+        credentials: dict[str, str] | None = None,
+    ) -> "BaseMonitor | None":
+        """
+        更新服务的凭据和别名
+
+        Args:
+            service_id: 服务 ID
+            alias: 新别名（可选）
+            credentials: 新凭据字典（可选）
+
+        Returns:
+            更新后的插件实例，失败时返回 None
+        """
+        # 获取现有配置
+        service_config = self.config_mgr.get_service(service_id)
+        if service_config is None:
+            return None
+
+        # 更新别名
+        if alias:
+            self.config_mgr.update_service(service_id, alias=alias)
+
+        # 更新凭据
+        if credentials:
+            # 获取旧实例以便删除旧凭据
+            old_instance = self._instances.get(service_id)
+            if old_instance:
+                self.security_mgr.delete_all_credentials(
+                    service_id,
+                    old_instance.required_credentials,
+                )
+
+            # 保存新凭据
+            self.security_mgr.set_credentials(service_id, credentials)
+
+        # 移除旧实例
+        if service_id in self._instances:
+            del self._instances[service_id]
+
+        # 重新获取配置并创建新实例
+        updated_config = self.config_mgr.get_service(service_id)
+        if updated_config:
+            return self.create_instance(updated_config)
+        return None
+
