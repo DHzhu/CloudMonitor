@@ -160,6 +160,10 @@ class DashboardPage(ft.Container):
             return ft.Colors.GREEN
         elif "gemini" in plugin_type:
             return ft.Colors.PURPLE
+        elif "gcp" in plugin_type:
+            return ft.Colors.RED
+        elif "digitalocean" in plugin_type:
+            return ft.Colors.BLUE_400
         else:
             return ft.Colors.BLUE_400
 

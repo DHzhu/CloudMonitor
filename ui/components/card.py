@@ -125,6 +125,8 @@ class MonitorCard(ft.Container):
     ) -> None:
         self.title = title
         self.icon_name = icon
+        # 将图标名称转换为 ft.Icons 常量
+        self._icon_value = getattr(ft.Icons, icon.upper(), ft.Icons.CLOUD)
         self.data = data
         self.on_refresh_callback = on_refresh
         self.accent_color = accent_color
@@ -172,7 +174,7 @@ class MonitorCard(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Container(
-                            content=ft.Icon(self.icon_name, color=self.accent_color, size=24),
+                            content=ft.Icon(self._icon_value, color=self.accent_color, size=24),
                         ),
                         ft.Text(
                             self.title,
@@ -238,7 +240,7 @@ class MonitorCard(ft.Container):
         """构建标题行"""
         return ft.Row(
             controls=[
-                ft.Icon(self.icon_name, color=self.accent_color, size=24),
+                ft.Icon(self._icon_value, color=self.accent_color, size=24),
                 ft.Text(
                     self.title,
                     size=16,
