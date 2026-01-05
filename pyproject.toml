@@ -19,6 +19,7 @@ dependencies = [
     "azure-mgmt-compute>=33.0.0",
     # Cloud SDKs - Google
     "google-genai>=1.0.0",
+    "google-cloud-billing>=1.14.0",
 ]
 
 [dependency-groups]
