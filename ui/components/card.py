@@ -248,7 +248,7 @@ class MonitorCard(ft.Container):
                     color=ft.Colors.WHITE,
                     expand=True,
                 ),
-                ft.Icon("circle", color=color, size=10),
+                ft.Icon(ft.Icons.CIRCLE, color=color, size=10),
             ],
             alignment=ft.MainAxisAlignment.START,
             spacing=8,

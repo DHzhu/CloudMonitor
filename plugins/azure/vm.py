@@ -205,7 +205,7 @@ class AzureVMMonitor(BaseMonitor):
             instance_rows.append(
                 ft.Row(
                     controls=[
-                        ft.Icon("circle", color=state_color, size=10),
+                        ft.Icon(ft.Icons.CIRCLE, color=state_color, size=10),
                         ft.Text(metric.label, size=11, color=ft.Colors.WHITE, expand=True),
                         ft.Text(metric.unit or "", size=10, color=ft.Colors.WHITE_54),
                     ],
@@ -225,7 +225,7 @@ class AzureVMMonitor(BaseMonitor):
                                 weight=ft.FontWeight.BOLD,
                                 color=ft.Colors.WHITE,
                             ),
-                            ft.Container(content=ft.Icon("circle", color=color, size=10)),
+                            ft.Container(content=ft.Icon(ft.Icons.CIRCLE, color=color, size=10)),
                         ],
                         alignment=ft.MainAxisAlignment.START,
                         spacing=8,

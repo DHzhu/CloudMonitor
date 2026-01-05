@@ -129,7 +129,7 @@ class GeminiQuotaMonitor(BaseMonitor):
             model_rows.append(
                 ft.Row(
                     controls=[
-                        ft.Icon("smart_toy", size=14, color=ft.Colors.WHITE_54),
+                        ft.Icon(ft.Icons.SMART_TOY, size=14, color=ft.Colors.WHITE_54),
                         ft.Text(metric.label, size=11, color=ft.Colors.WHITE, expand=True),
                         ft.Text(metric.value, size=10, color=ft.Colors.WHITE_54),
                     ],
@@ -157,7 +157,7 @@ class GeminiQuotaMonitor(BaseMonitor):
                                 weight=ft.FontWeight.BOLD,
                                 color=ft.Colors.WHITE,
                             ),
-                            ft.Container(content=ft.Icon("circle", color=color, size=10)),
+                            ft.Container(content=ft.Icon(ft.Icons.CIRCLE, color=color, size=10)),
                         ],
                         alignment=ft.MainAxisAlignment.START,
                         spacing=8,

@@ -108,12 +108,14 @@ class SettingsPage(ft.Container):
         """构建单个服务项"""
         plugin_info = self.plugin_mgr.get_plugin_info(service.plugin_type)
         display_name = plugin_info["display_name"] if plugin_info else service.plugin_type
-        icon = plugin_info["icon"] if plugin_info else "cloud"
+        icon_name = plugin_info["icon"] if plugin_info else "cloud"
+        # 将字符串图标名转换为 ft.Icons 值
+        icon_value = getattr(ft.Icons, icon_name.upper(), ft.Icons.CLOUD)
 
         return ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(icon, size=32, color=ft.Colors.BLUE_400),
+                    ft.Icon(icon_value, size=32, color=ft.Colors.BLUE_400),
                     ft.Column(
                         controls=[
                             ft.Text(

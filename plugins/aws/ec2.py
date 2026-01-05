@@ -216,7 +216,7 @@ class AWSEC2Monitor(BaseMonitor):
             instance_rows.append(
                 ft.Row(
                     controls=[
-                        ft.Icon("circle", color=state_color, size=10),
+                        ft.Icon(ft.Icons.CIRCLE, color=state_color, size=10),
                         ft.Text(
                             metric.label,
                             size=11,
@@ -247,7 +247,7 @@ class AWSEC2Monitor(BaseMonitor):
                                 color=ft.Colors.WHITE,
                             ),
                             ft.Container(
-                                content=ft.Icon("circle", color=color, size=10),
+                                content=ft.Icon(ft.Icons.CIRCLE, color=color, size=10),
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.START,

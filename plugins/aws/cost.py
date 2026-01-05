@@ -241,7 +241,7 @@ class AWSCostMonitor(BaseMonitor):
                                 color=ft.Colors.WHITE,
                             ),
                             ft.Container(
-                                content=ft.Icon("circle", color=color, size=10),
+                                content=ft.Icon(ft.Icons.CIRCLE, color=color, size=10),
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.START,
