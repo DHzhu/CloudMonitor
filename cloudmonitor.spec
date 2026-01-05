@@ -50,6 +50,8 @@ a = Analysis(
         'plugins.azure.cost',
         'plugins.gemini.quota',
         'plugins.zhipu.balance',
+        'plugins.gcp.cost',
+        'plugins.digitalocean.cost',
         # 云 SDK
         'boto3',
         'botocore',
@@ -57,6 +59,8 @@ a = Analysis(
         'azure.mgmt.compute',
         'azure.mgmt.costmanagement',
         'google.generativeai',
+        'google.cloud.billing_v1',
+        'google.oauth2.service_account',
         # 其他依赖
         'httpx',
         'keyring',
