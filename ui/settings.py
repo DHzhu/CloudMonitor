@@ -120,11 +120,20 @@ class SettingsPage(ft.Container):
                     ft.Icon(icon_value, size=32, color=ft.Colors.BLUE_400),
                     ft.Column(
                         controls=[
-                            ft.Text(
-                                service.alias,
-                                size=16,
-                                weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.WHITE,
+                            ft.TextButton(
+                                content=ft.Text(
+                                    service.alias,
+                                    size=16,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.WHITE,
+                                ),
+                                on_click=lambda e,
+                                    sid=service.service_id,
+                                    alias=service.alias,
+                                    pt=service.plugin_type: self._on_edit_service(
+                                        e, sid, alias, pt
+                                    ),
+                                style=ft.ButtonStyle(padding=0),
                             ),
                             ft.Text(
                                 display_name,

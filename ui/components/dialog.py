@@ -95,6 +95,8 @@ class CredentialDialog(ft.AlertDialog):
             "tenant_id": ("租户 ID", "Azure 租户 ID"),
             "client_id": ("客户端 ID", "Azure 应用程序 ID"),
             "client_secret": ("客户端密钥", "Azure 应用程序密钥"),
+            "billing_account_id": ("计费账户 ID", "Azure 计费账户 ID"),
+            "billing_profile_id": ("计费对象 ID", "Azure 计费对象 ID"),
         }
 
         for field_name in self.required_fields:

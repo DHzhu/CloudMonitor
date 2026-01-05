@@ -119,16 +119,20 @@ class MonitorCard(ft.Container):
         title: str,
         icon: str,
         data: MonitorResult | None = None,
-        on_refresh: ft.ControlEvent | None = None,
+        service_id: str = "",
+        on_refresh: callable | None = None,
+        on_edit: callable | None = None,
         accent_color: str = ft.Colors.BLUE,
         show_skeleton: bool = False,
     ) -> None:
         self.title = title
         self.icon_name = icon
+        self.service_id = service_id
         # 将图标名称转换为 ft.Icons 常量
         self._icon_value = getattr(ft.Icons, icon.upper(), ft.Icons.CLOUD)
         self.data = data
         self.on_refresh_callback = on_refresh
+        self.on_edit_callback = on_edit
         self.accent_color = accent_color
         self._show_skeleton = show_skeleton
 
@@ -238,18 +242,49 @@ class MonitorCard(ft.Container):
 
     def _build_header(self, color: str) -> ft.Control:
         """构建标题行"""
-        return ft.Row(
-            controls=[
-                ft.Icon(self._icon_value, color=self.accent_color, size=24),
-                ft.Text(
+        # 名称可点击编辑
+        if self.on_edit_callback:
+            title_control = ft.TextButton(
+                content=ft.Text(
                     self.title,
                     size=16,
                     weight=ft.FontWeight.BOLD,
                     color=ft.Colors.WHITE,
-                    expand=True,
                 ),
-                ft.Icon(ft.Icons.CIRCLE, color=color, size=10),
-            ],
+                on_click=lambda e: self.on_edit_callback(self.service_id),
+                style=ft.ButtonStyle(padding=0),
+            )
+        else:
+            title_control = ft.Text(
+                self.title,
+                size=16,
+                weight=ft.FontWeight.BOLD,
+                color=ft.Colors.WHITE,
+            )
+
+        controls = [
+            ft.Icon(self._icon_value, color=self.accent_color, size=24),
+            ft.Container(content=title_control, expand=True),
+        ]
+
+        # 刷新按钮
+        if self.on_refresh_callback:
+            controls.append(
+                ft.IconButton(
+                    icon=ft.Icons.REFRESH,
+                    icon_size=18,
+                    icon_color=ft.Colors.BLUE_300,
+                    tooltip="刷新",
+                    on_click=lambda e: self.on_refresh_callback(self.service_id),
+                    style=ft.ButtonStyle(padding=0),
+                )
+            )
+
+        # 状态指示器
+        controls.append(ft.Icon(ft.Icons.CIRCLE, color=color, size=10))
+
+        return ft.Row(
+            controls=controls,
             alignment=ft.MainAxisAlignment.START,
             spacing=8,
         )

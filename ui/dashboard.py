@@ -131,6 +131,9 @@ class DashboardPage(ft.Container):
                 title=monitor.alias or monitor.display_name,
                 icon=monitor.icon,
                 data=cached_result,  # 优先使用缓存
+                service_id=monitor.service_id,
+                on_refresh=self._on_card_refresh,
+                on_edit=self._on_card_edit,
                 accent_color=self._get_accent_color(monitor),
                 show_skeleton=(cached_result is None),  # 无缓存时显示骨架屏
             )
@@ -266,6 +269,78 @@ class DashboardPage(ft.Container):
     def _on_refresh_all(self, e: ft.ControlEvent) -> None:
         """刷新全部按钮点击事件"""
         asyncio.create_task(self._refresh_all_async())
+
+    def _on_card_refresh(self, service_id: str) -> None:
+        """单个卡片刷新回调"""
+        # 找到对应的 monitor
+        monitor = next((m for m in self.monitors if m.service_id == service_id), None)
+        if monitor:
+            asyncio.create_task(self._refresh_monitor(monitor))
+
+    def _on_card_edit(self, service_id: str) -> None:
+        """单个卡片编辑回调"""
+        # 找到对应的 monitor
+        monitor = next((m for m in self.monitors if m.service_id == service_id), None)
+        if not monitor:
+            return
+
+        # 获取插件信息
+        info = self.plugin_mgr.get_plugin_info(monitor.plugin_id)
+        if not info:
+            return
+
+        # 导入对话框组件
+        from ui.components.dialog import CredentialDialog
+
+        # 显示编辑对话框
+        dialog = CredentialDialog(
+            title=f"编辑 {monitor.alias or monitor.display_name}",
+            plugin_type=monitor.plugin_id,
+            required_fields=info["required_credentials"],
+            on_save=lambda values: self._save_card_edit(service_id, values),
+            on_cancel=lambda e: self._close_dialog(e),
+            initial_values={"alias": monitor.alias or ""},
+            is_edit_mode=True,
+        )
+
+        self.app_page.overlay.append(dialog)
+        dialog.open = True
+        self.app_page.update()
+
+    def _save_card_edit(self, service_id: str, values: dict[str, str]) -> None:
+        """保存卡片编辑"""
+        from ui.components.dialog import SnackBar
+
+        alias = values.pop("alias", "")
+
+        instance = self.plugin_mgr.update_service_credentials(
+            service_id=service_id,
+            alias=alias if alias else None,
+            credentials=values if values else None,
+        )
+
+        if instance:
+            SnackBar.show(self.app_page, f"服务 '{alias}' 更新成功")
+            self.refresh()
+        else:
+            SnackBar.show(self.app_page, "更新服务失败", is_error=True)
+
+        self._close_all_dialogs()
+
+    def _close_dialog(self, e: ft.ControlEvent) -> None:
+        """关闭对话框"""
+        if self.app_page.overlay:
+            dialog = self.app_page.overlay[-1]
+            if isinstance(dialog, ft.AlertDialog):
+                dialog.open = False
+                self.app_page.update()
+
+    def _close_all_dialogs(self) -> None:
+        """关闭所有对话框"""
+        for control in self.app_page.overlay:
+            if isinstance(control, ft.AlertDialog):
+                control.open = False
+        self.app_page.update()
 
     def _on_go_to_settings(self, e: ft.ControlEvent) -> None:
         """跳转到设置页面"""

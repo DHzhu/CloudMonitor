@@ -44,7 +44,13 @@ class AzureCostMonitor(BaseMonitor):
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["tenant_id", "client_id", "client_secret", "subscription_id"]
+        return [
+            "tenant_id",
+            "client_id",
+            "client_secret",
+            "billing_account_id",
+            "billing_profile_id",
+        ]
 
     async def fetch_data(self) -> MonitorResult:
         """
@@ -53,9 +59,10 @@ class AzureCostMonitor(BaseMonitor):
         tenant_id = self.credentials.get("tenant_id", "")
         client_id = self.credentials.get("client_id", "")
         client_secret = self.credentials.get("client_secret", "")
-        subscription_id = self.credentials.get("subscription_id", "")
+        billing_account_id = self.credentials.get("billing_account_id", "")
+        billing_profile_id = self.credentials.get("billing_profile_id", "")
 
-        if not all([tenant_id, client_id, client_secret, subscription_id]):
+        if not all([tenant_id, client_id, client_secret, billing_account_id, billing_profile_id]):
             return self._create_error_result("未配置 Azure 凭据")
 
         try:
@@ -64,7 +71,8 @@ class AzureCostMonitor(BaseMonitor):
                 tenant_id,
                 client_id,
                 client_secret,
-                subscription_id,
+                billing_account_id,
+                billing_profile_id,
             )
             return result
         except Exception as e:
@@ -75,7 +83,8 @@ class AzureCostMonitor(BaseMonitor):
         tenant_id: str,
         client_id: str,
         client_secret: str,
-        subscription_id: str,
+        billing_account_id: str,
+        billing_profile_id: str,
     ) -> MonitorResult:
         """同步获取费用数据（在线程池中执行）"""
         from azure.core.exceptions import AzureError, ClientAuthenticationError, HttpResponseError
@@ -100,13 +109,16 @@ class AzureCostMonitor(BaseMonitor):
 
             cost_client = CostManagementClient(
                 credential=credential,
-                subscription_id=subscription_id,
             )
 
             today = datetime.now()
             start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            scope = f"/subscriptions/{subscription_id}"
+            # 使用 Billing Profile scope
+            scope = (
+                f"/providers/Microsoft.Billing/billingAccounts/{billing_account_id}"
+                f"/billingProfiles/{billing_profile_id}"
+            )
 
             query_definition = QueryDefinition(
                 type=ExportType.ACTUAL_COST,
