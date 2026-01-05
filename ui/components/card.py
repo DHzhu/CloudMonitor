@@ -365,11 +365,13 @@ class MonitorCard(ft.Container):
         self._show_skeleton = False
         self.content = self._build_content()
         self.border = ft.Border.all(1, ft.Colors.with_opacity(0.2, self._get_status_color()))
+        self.update()
 
     def show_loading(self) -> None:
         """显示加载状态（骨架屏）"""
         self._show_skeleton = True
         self.content = self._build_content()
+        self.update()
 
 
 class LoadingCard(ft.Container):

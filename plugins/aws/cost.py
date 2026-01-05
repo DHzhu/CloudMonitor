@@ -233,7 +233,7 @@ class AWSCostMonitor(BaseMonitor):
                     # 标题行
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=ft.Colors.ORANGE, size=24),
+                            ft.Icon(self.icon_value, color=ft.Colors.ORANGE, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
@@ -305,7 +305,7 @@ class AWSCostMonitor(BaseMonitor):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=ft.Colors.RED, size=24),
+                            ft.Icon(self.icon_value, color=ft.Colors.RED, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,

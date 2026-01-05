@@ -88,6 +88,11 @@ class BaseMonitor(ABC):
         return None
 
     @property
+    def icon_value(self) -> int:
+        """返回服务图标的 ft.Icons 值（用于 render_card 等方法）"""
+        return getattr(ft.Icons, self.icon.upper(), ft.Icons.CLOUD)
+
+    @property
     @abstractmethod
     def required_credentials(self) -> list[str]:
         """返回所需的凭据字段列表"""

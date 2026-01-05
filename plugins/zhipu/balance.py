@@ -181,7 +181,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=color, size=24),
+                            ft.Icon(self.icon_value, color=color, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
@@ -234,7 +234,7 @@ class ZhipuBalanceMonitor(BaseMonitor):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon, color=ft.Colors.RED, size=24),
+                            ft.Icon(self.icon_value, color=ft.Colors.RED, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
