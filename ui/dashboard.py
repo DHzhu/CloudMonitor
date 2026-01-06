@@ -130,6 +130,7 @@ class DashboardPage(ft.Container):
             card = MonitorCard(
                 title=monitor.alias or monitor.display_name,
                 icon=monitor.icon,
+                icon_path=monitor.icon_path,
                 data=cached_result,  # 优先使用缓存
                 service_id=monitor.service_id,
                 on_refresh=self._on_card_refresh,
@@ -268,14 +269,18 @@ class DashboardPage(ft.Container):
 
     def _on_refresh_all(self, e: ft.ControlEvent) -> None:
         """刷新全部按钮点击事件"""
-        asyncio.create_task(self._refresh_all_async())
+        self.app_page.run_task(self._refresh_all_async)
 
     def _on_card_refresh(self, service_id: str) -> None:
         """单个卡片刷新回调"""
         # 找到对应的 monitor
         monitor = next((m for m in self.monitors if m.service_id == service_id), None)
         if monitor:
-            asyncio.create_task(self._refresh_monitor(monitor))
+            # 显示加载状态
+            if service_id in self.cards:
+                self.cards[service_id].show_loading()
+            # 使用 page.run_task 代替 asyncio.create_task
+            self.app_page.run_task(self._refresh_monitor, monitor)
 
     def _on_card_edit(self, service_id: str) -> None:
         """单个卡片编辑回调"""
@@ -360,7 +365,12 @@ class DashboardPage(ft.Container):
 
     def refresh(self) -> None:
         """刷新页面内容"""
+        # 重新构建内容
         self.content = self._build_content()
+        self.app_page.update()
+        # 如果有监控服务，触发异步数据刷新
+        if self.monitors:
+            self.app_page.run_task(self._refresh_all_async)
 
     async def initial_load(self) -> None:
         """

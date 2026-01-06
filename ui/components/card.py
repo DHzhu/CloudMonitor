@@ -120,6 +120,7 @@ class MonitorCard(ft.Container):
         self,
         title: str,
         icon: str,
+        icon_path: str | None = None,
         data: MonitorResult | None = None,
         service_id: str = "",
         on_refresh: Callable | None = None,
@@ -129,6 +130,7 @@ class MonitorCard(ft.Container):
     ) -> None:
         self.title = title
         self.icon_name = icon
+        self.icon_path = icon_path
         self.service_id = service_id
         # 将图标名称转换为 ft.Icons 常量
         self._icon_value = getattr(ft.Icons, icon.upper(), ft.Icons.CLOUD)
@@ -180,7 +182,7 @@ class MonitorCard(ft.Container):
                 ft.Row(
                     controls=[
                         ft.Container(
-                            content=ft.Icon(self._icon_value, color=self.accent_color, size=24),
+                            content=self._build_icon_control(),
                         ),
                         ft.Text(
                             self.title,
@@ -242,6 +244,17 @@ class MonitorCard(ft.Container):
             spacing=8,
         )
 
+    def _build_icon_control(self) -> ft.Control:
+        """构建图标控件，优先使用品牌图标"""
+        if self.icon_path:
+            return ft.Image(
+                src=self.icon_path,
+                width=24,
+                height=24,
+                fit=ft.BoxFit.CONTAIN,
+            )
+        return ft.Icon(self._icon_value, color=self.accent_color, size=24)
+
     def _build_header(self, color: str) -> ft.Control:
         """构建标题行"""
         # 名称可点击编辑
@@ -265,7 +278,7 @@ class MonitorCard(ft.Container):
             )
 
         controls = [
-            ft.Icon(self._icon_value, color=self.accent_color, size=24),
+            self._build_icon_control(),
             ft.Container(content=title_control, expand=True),
         ]
 

@@ -110,14 +110,25 @@ class SettingsPage(ft.Container):
         """构建单个服务项"""
         plugin_info = self.plugin_mgr.get_plugin_info(service.plugin_type)
         display_name = plugin_info["display_name"] if plugin_info else service.plugin_type
-        icon_name = plugin_info["icon"] if plugin_info else "cloud"
-        # 将字符串图标名转换为 ft.Icons 值
-        icon_value = getattr(ft.Icons, icon_name.upper(), ft.Icons.CLOUD)
+
+        # 优先使用品牌图标，否则回退到 Material Icon
+        icon_path = plugin_info.get("icon_path") if plugin_info else None
+        if icon_path:
+            leading_icon = ft.Image(
+                src=icon_path,
+                width=32,
+                height=32,
+                fit=ft.BoxFit.CONTAIN,
+            )
+        else:
+            icon_name = plugin_info["icon"] if plugin_info else "cloud"
+            icon_value = getattr(ft.Icons, icon_name.upper(), ft.Icons.CLOUD)
+            leading_icon = ft.Icon(icon_value, size=32, color=ft.Colors.BLUE_400)
 
         return ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(icon_value, size=32, color=ft.Colors.BLUE_400),
+                    leading_icon,
                     ft.Column(
                         controls=[
                             ft.TextButton(
@@ -293,7 +304,7 @@ class SettingsPage(ft.Container):
 
     def _on_refresh_service(self, e: ft.ControlEvent, service_id: str) -> None:
         """刷新单个服务"""
-        asyncio.create_task(self._refresh_service_async(service_id))
+        self.app_page.run_task(self._refresh_service_async, service_id)
 
     async def _refresh_service_async(self, service_id: str) -> None:
         """异步刷新单个服务"""

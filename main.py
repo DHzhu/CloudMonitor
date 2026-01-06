@@ -118,7 +118,7 @@ class CloudMonitorApp:
         )
 
         # 初始加载数据
-        asyncio.create_task(self._initial_load())
+        self.page.run_task(self._initial_load)
 
     async def _initial_load(self) -> None:
         """初始加载数据"""
