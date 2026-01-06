@@ -11,24 +11,33 @@ CloudMonitor Pro - PyInstaller 打包配置
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 # 获取项目根目录
 project_root = Path(SPECPATH)
 
-# 收集 Google Cloud 相关子模块
-google_cloud_billing_modules = collect_submodules('google.cloud.billing_budgets_v1')
-google_cloud_billing_v1_modules = collect_submodules('google.cloud.billing_v1')
+# 收集 Google Cloud 相关模块的所有资源
+gcp_budgets_datas, gcp_budgets_binaries, gcp_budgets_imports = collect_all('google.cloud.billing_budgets_v1')
+gcp_billing_datas, gcp_billing_binaries, gcp_billing_imports = collect_all('google.cloud.billing_v1')
+
+# 收集 grpc 相关模块
+grpc_modules = collect_submodules('grpc')
+google_api_modules = collect_submodules('google.api_core')
+
+# 合并所有额外数据
+extra_datas = gcp_budgets_datas + gcp_billing_datas
+extra_binaries = gcp_budgets_binaries + gcp_billing_binaries
+extra_imports = gcp_budgets_imports + gcp_billing_imports + grpc_modules + google_api_modules
 
 # 分析模块依赖
 a = Analysis(
     ['main.py'],
     pathex=[str(project_root)],
-    binaries=[],
+    binaries=extra_binaries,
     datas=[
         # 资源文件（图标等）
         ('assets', 'assets'),
-    ],
+    ] + extra_datas,
     hiddenimports=[
         # Flet 依赖
         'flet',
@@ -67,11 +76,12 @@ a = Analysis(
         'google.cloud.billing_v1',
         'google.cloud.billing_budgets_v1',
         'google.oauth2.service_account',
+        'google.protobuf',
         # 其他依赖
         'httpx',
         'keyring',
         'keyring.backends',
-    ] + google_cloud_billing_modules + google_cloud_billing_v1_modules,
+    ] + extra_imports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
