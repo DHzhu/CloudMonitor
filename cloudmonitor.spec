@@ -49,7 +49,6 @@ a = Analysis(
         'plugins.azure.vm',
         'plugins.azure.cost',
         'plugins.gemini.quota',
-        'plugins.zhipu.balance',
         'plugins.gcp.cost',
         'plugins.digitalocean.cost',
         # 云 SDK

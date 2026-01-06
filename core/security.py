@@ -42,6 +42,9 @@ class SecurityManager:
         """
         return f"{self.service_name}:{service_id}:{credential_name}"
 
+    # Windows Credential Manager 单条凭据最大字节数限制
+    MAX_CREDENTIAL_SIZE = 2000
+
     def set_credential(self, service_id: str, credential_name: str, value: str) -> bool:
         """
         存储凭据
@@ -56,7 +59,33 @@ class SecurityManager:
         """
         try:
             key = self._make_key(service_id, credential_name)
+
+            # 检查凭据长度，超长则分块存储
+            if len(value.encode("utf-8")) > self.MAX_CREDENTIAL_SIZE:
+                return self._set_chunked_credential(key, value)
+
             keyring.set_password(self.service_name, key, value)
+            return True
+        except KeyringError:
+            return False
+
+    def _set_chunked_credential(self, key: str, value: str) -> bool:
+        """分块存储超长凭据"""
+        try:
+            # 将值转换为字节并分块
+            value_bytes = value.encode("utf-8")
+            chunks = []
+            for i in range(0, len(value_bytes), self.MAX_CREDENTIAL_SIZE):
+                chunk = value_bytes[i : i + self.MAX_CREDENTIAL_SIZE]
+                chunks.append(chunk.decode("utf-8", errors="replace"))
+
+            # 存储块数量
+            keyring.set_password(self.service_name, f"{key}:chunks", str(len(chunks)))
+
+            # 存储每个块
+            for idx, chunk in enumerate(chunks):
+                keyring.set_password(self.service_name, f"{key}:chunk:{idx}", chunk)
+
             return True
         except KeyringError:
             return False
@@ -74,7 +103,26 @@ class SecurityManager:
         """
         try:
             key = self._make_key(service_id, credential_name)
+
+            # 先检查是否为分块存储
+            chunks_count = keyring.get_password(self.service_name, f"{key}:chunks")
+            if chunks_count:
+                return self._get_chunked_credential(key, int(chunks_count))
+
             return keyring.get_password(self.service_name, key)
+        except KeyringError:
+            return None
+
+    def _get_chunked_credential(self, key: str, chunks_count: int) -> str | None:
+        """读取并合并分块凭据"""
+        try:
+            chunks = []
+            for idx in range(chunks_count):
+                chunk = keyring.get_password(self.service_name, f"{key}:chunk:{idx}")
+                if chunk is None:
+                    return None
+                chunks.append(chunk)
+            return "".join(chunks)
         except KeyringError:
             return None
 
@@ -91,10 +139,35 @@ class SecurityManager:
         """
         try:
             key = self._make_key(service_id, credential_name)
-            keyring.delete_password(self.service_name, key)
+
+            # 检查是否为分块存储
+            chunks_count = keyring.get_password(self.service_name, f"{key}:chunks")
+            if chunks_count:
+                self._delete_chunked_credential(key, int(chunks_count))
+
+            # 尝试删除普通凭据
+            try:
+                keyring.delete_password(self.service_name, key)
+            except KeyringError:
+                pass  # 可能不存在普通凭据
+
             return True
         except KeyringError:
             return False
+
+    def _delete_chunked_credential(self, key: str, chunks_count: int) -> None:
+        """删除分块凭据"""
+        try:
+            # 删除所有块
+            for idx in range(chunks_count):
+                try:
+                    keyring.delete_password(self.service_name, f"{key}:chunk:{idx}")
+                except KeyringError:
+                    pass
+            # 删除块数量记录
+            keyring.delete_password(self.service_name, f"{key}:chunks")
+        except KeyringError:
+            pass
 
     def get_credentials(self, service_id: str, credential_names: list[str]) -> dict[str, str]:
         """

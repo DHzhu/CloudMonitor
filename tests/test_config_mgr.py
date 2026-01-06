@@ -35,7 +35,7 @@ class TestConfigManager:
     def test_get_all_services(self, config_mgr: ConfigManager) -> None:
         """测试获取所有服务"""
         config_mgr.add_service("aws_cost", "AWS 1")
-        config_mgr.add_service("zhipu_balance", "智谱")
+        config_mgr.add_service("gemini_quota", "Gemini")
 
         services = config_mgr.get_all_services()
         assert len(services) == 2
@@ -43,14 +43,14 @@ class TestConfigManager:
     def test_get_enabled_services(self, config_mgr: ConfigManager) -> None:
         """测试获取启用的服务"""
         id1 = config_mgr.add_service("aws_cost", "AWS 1")
-        config_mgr.add_service("zhipu_balance", "智谱")
+        config_mgr.add_service("gemini_quota", "Gemini")
 
         # 禁用第一个服务
         config_mgr.update_service(id1, enabled=False)
 
         enabled = config_mgr.get_enabled_services()
         assert len(enabled) == 1
-        assert enabled[0].plugin_type == "zhipu_balance"
+        assert enabled[0].plugin_type == "gemini_quota"
 
     def test_update_service(self, config_mgr: ConfigManager) -> None:
         """测试更新服务"""
@@ -88,7 +88,7 @@ class TestConfigManager:
     def test_clear_cache(self, config_mgr: ConfigManager) -> None:
         """测试清除缓存"""
         id1 = config_mgr.add_service("aws_cost", "AWS")
-        id2 = config_mgr.add_service("zhipu_balance", "智谱")
+        id2 = config_mgr.add_service("gemini_quota", "Gemini")
 
         config_mgr.set_cache(id1, {"data": 1})
         config_mgr.set_cache(id2, {"data": 2})

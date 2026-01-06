@@ -9,7 +9,6 @@ from plugins.aws import AWSCostMonitor, AWSEC2Monitor
 from plugins.azure import AzureCostMonitor, AzureVMMonitor
 from plugins.gemini import GeminiQuotaMonitor
 from plugins.interface import BaseMonitor
-from plugins.zhipu import ZhipuBalanceMonitor
 
 __all__ = [
     "BaseMonitor",
@@ -18,5 +17,4 @@ __all__ = [
     "AzureVMMonitor",
     "AzureCostMonitor",
     "GeminiQuotaMonitor",
-    "ZhipuBalanceMonitor",
 ]

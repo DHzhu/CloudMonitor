@@ -118,7 +118,7 @@ class ConfigManager:
         添加新服务
 
         Args:
-            plugin_type: 插件类型（如 'aws_cost', 'zhipu_balance'）
+            plugin_type: 插件类型（如 'aws_cost', 'gemini_quota'）
             alias: 用户自定义别名
 
         Returns:

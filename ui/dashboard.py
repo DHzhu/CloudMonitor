@@ -160,8 +160,6 @@ class DashboardPage(ft.Container):
             return ft.Colors.ORANGE
         elif "azure" in plugin_type:
             return ft.Colors.BLUE
-        elif "zhipu" in plugin_type:
-            return ft.Colors.GREEN
         elif "gemini" in plugin_type:
             return ft.Colors.PURPLE
         elif "gcp" in plugin_type:
