@@ -81,6 +81,15 @@ class SecurityManager:
         import base64
 
         try:
+            # 先删除可能存在的旧分块
+            old_chunks_count = keyring.get_password(self.service_name, f"{key}:chunks")
+            if old_chunks_count:
+                for idx in range(int(old_chunks_count)):
+                    try:
+                        keyring.delete_password(self.service_name, f"{key}:chunk:{idx}")
+                    except KeyringError:
+                        pass
+
             # 分块原始字节数据
             chunks = []
             for i in range(0, len(value_bytes), self.MAX_CREDENTIAL_SIZE):
@@ -124,7 +133,11 @@ class SecurityManager:
                 return self._get_chunked_credential(key, int(chunks_count))
 
             return keyring.get_password(self.service_name, key)
-        except KeyringError:
+        except KeyringError as e:
+            print(f"Get credential KeyringError: {e}")
+            return None
+        except Exception as e:
+            print(f"Get credential error: {e}")
             return None
 
     def _get_chunked_credential(self, key: str, chunks_count: int) -> str | None:
