@@ -16,8 +16,8 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 # 获取项目根目录
 project_root = Path(SPECPATH)
 
-# 收集 Google Cloud 相关模块的所有资源
-gcp_budgets_datas, gcp_budgets_binaries, gcp_budgets_imports = collect_all('google.cloud.billing_budgets_v1')
+# 收集 Google Cloud 相关模块的所有资源（注意正确的模块路径）
+gcp_budgets_datas, gcp_budgets_binaries, gcp_budgets_imports = collect_all('google.cloud.billing.budgets_v1')
 gcp_billing_datas, gcp_billing_binaries, gcp_billing_imports = collect_all('google.cloud.billing_v1')
 
 # 收集 grpc 相关模块
@@ -74,7 +74,7 @@ a = Analysis(
         'azure.mgmt.costmanagement',
         'google.generativeai',
         'google.cloud.billing_v1',
-        'google.cloud.billing_budgets_v1',
+        'google.cloud.billing.budgets_v1',
         'google.oauth2.service_account',
         'google.protobuf',
         # 其他依赖

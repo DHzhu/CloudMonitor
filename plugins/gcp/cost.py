@@ -81,7 +81,7 @@ class GCPCostMonitor(BaseMonitor):
         import json
 
         try:
-            from google.cloud import billing_budgets_v1
+            from google.cloud.billing import budgets_v1
             from google.oauth2 import service_account
         except ImportError:
             return self._create_error_result(
@@ -103,7 +103,7 @@ class GCPCostMonitor(BaseMonitor):
                 )
 
             # 创建 Budgets 客户端
-            client = billing_budgets_v1.BudgetServiceClient(credentials=credentials)
+            client = budgets_v1.BudgetServiceClient(credentials=credentials)
 
             # 格式化计费账户名称
             if not billing_account_id.startswith("billingAccounts/"):
