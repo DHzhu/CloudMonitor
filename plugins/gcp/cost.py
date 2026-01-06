@@ -101,8 +101,17 @@ class GCPCostMonitor(BaseMonitor):
             project_name = f"projects/{project_id}"
             try:
                 project_billing_info = client.get_project_billing_info(name=project_name)
-            except Exception:
-                return self._create_error_result("无法获取项目计费信息")
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "permission" in error_msg or "forbidden" in error_msg:
+                    return self._create_error_result(
+                        "权限不足：需要 Billing Account Viewer 角色"
+                    )
+                elif "not found" in error_msg:
+                    return self._create_error_result(f"项目 '{project_id}' 不存在")
+                elif "invalid" in error_msg:
+                    return self._create_error_result("服务账号凭据无效")
+                return self._create_error_result(f"无法获取项目计费信息: {e!s}")
 
             if not project_billing_info.billing_enabled:
                 return self._create_success_result(
