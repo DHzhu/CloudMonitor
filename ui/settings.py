@@ -375,6 +375,9 @@ class SettingsPage(ft.Container):
 
     def _confirm_delete(self, e: ft.ControlEvent, service_id: str) -> None:
         """确认删除"""
+        # 先关闭对话框，避免事件参数问题
+        self._close_all_dialogs()
+
         result = self.plugin_mgr.remove_service(service_id)
 
         if result:
@@ -382,8 +385,6 @@ class SettingsPage(ft.Container):
             self.refresh()
         else:
             SnackBar.show(self.app_page, "删除失败", is_error=True)
-
-        self._close_dialog(e)
 
     def _close_dialog(self, e: ft.ControlEvent) -> None:
         """关闭对话框"""

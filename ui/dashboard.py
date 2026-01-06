@@ -344,10 +344,19 @@ class DashboardPage(ft.Container):
 
     def _on_go_to_settings(self, e: ft.ControlEvent) -> None:
         """跳转到设置页面"""
-        # 通过导航栏切换
+        # 通过导航栏切换并模拟导航事件
         if self.app_page.navigation:
             self.app_page.navigation.selected_index = 1
-            self.app_page.update()
+            # 触发导航栏的 on_change 回调
+            if self.app_page.navigation.on_change:
+                # 创建一个模拟事件对象
+                class MockEvent:
+                    def __init__(self, control: ft.Control) -> None:
+                        self.control = control
+                mock_event = MockEvent(self.app_page.navigation)
+                self.app_page.navigation.on_change(mock_event)
+            else:
+                self.app_page.update()
 
     def refresh(self) -> None:
         """刷新页面内容"""
