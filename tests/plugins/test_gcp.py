@@ -21,7 +21,7 @@ class TestGCPCostMonitor:
             alias="测试 GCP",
             credentials={
                 "service_account_json": '{"type": "service_account", "project_id": "test"}',
-                "billing_account_id": "XXXXXX-XXXXXX-XXXXXX",
+                "gcp_billing_account": "XXXXXX-XXXXXX-XXXXXX",
             },
         )
 
@@ -40,7 +40,7 @@ class TestGCPCostMonitor:
     def test_required_credentials(self, monitor: GCPCostMonitor) -> None:
         """测试必需凭据"""
         assert "service_account_json" in monitor.required_credentials
-        assert "billing_account_id" in monitor.required_credentials
+        assert "gcp_billing_account" in monitor.required_credentials
 
     def test_icon_path(self, monitor: GCPCostMonitor) -> None:
         """测试图标路径"""

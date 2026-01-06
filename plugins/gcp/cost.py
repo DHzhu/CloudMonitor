@@ -42,7 +42,7 @@ class GCPCostMonitor(BaseMonitor):
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["service_account_json", "billing_account_id"]
+        return ["service_account_json", "gcp_billing_account"]
 
     async def fetch_data(self) -> MonitorResult:
         """
@@ -51,7 +51,7 @@ class GCPCostMonitor(BaseMonitor):
         import asyncio
 
         service_account_json = self.credentials.get("service_account_json", "")
-        billing_account_id = self.credentials.get("billing_account_id", "")
+        billing_account_id = self.credentials.get("gcp_billing_account", "")
 
         if not service_account_json or not billing_account_id:
             return self._create_error_result("未配置 GCP 凭据")

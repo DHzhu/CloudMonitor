@@ -11,8 +11,14 @@ CloudMonitor Pro - PyInstaller 打包配置
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_submodules
+
 # 获取项目根目录
 project_root = Path(SPECPATH)
+
+# 收集 Google Cloud 相关子模块
+google_cloud_billing_modules = collect_submodules('google.cloud.billing_budgets_v1')
+google_cloud_billing_v1_modules = collect_submodules('google.cloud.billing_v1')
 
 # 分析模块依赖
 a = Analysis(
@@ -65,7 +71,7 @@ a = Analysis(
         'httpx',
         'keyring',
         'keyring.backends',
-    ],
+    ] + google_cloud_billing_modules + google_cloud_billing_v1_modules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

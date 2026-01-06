@@ -97,6 +97,9 @@ class CredentialDialog(ft.AlertDialog):
             "client_secret": ("客户端密钥", "Azure 应用程序密钥"),
             "billing_account_id": ("计费账户 ID", "Azure 计费账户 ID"),
             "billing_profile_id": ("计费对象 ID", "Azure 计费对象 ID"),
+            # GCP 凭据字段
+            "service_account_json": ("服务账号 JSON", "粘贴服务账号 JSON 密钥内容"),
+            "gcp_billing_account": ("GCP 计费账户", "格式：XXXXXX-XXXXXX-XXXXXX"),
         }
 
         for field_name in self.required_fields:
