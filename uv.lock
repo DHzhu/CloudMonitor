@@ -313,6 +313,7 @@ dependencies = [
     { name = "flet", extra = ["all"] },
     { name = "google-cloud-billing" },
     { name = "google-cloud-billing-budgets" },
+    { name = "google-cloud-monitoring" },
     { name = "google-genai" },
     { name = "httpx" },
     { name = "keyring" },
@@ -338,6 +339,7 @@ requires-dist = [
     { name = "flet", extras = ["all"], specifier = ">=0.80.0" },
     { name = "google-cloud-billing", specifier = ">=1.14.0" },
     { name = "google-cloud-billing-budgets", specifier = ">=1.14.0" },
+    { name = "google-cloud-monitoring", specifier = ">=2.21.0" },
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "keyring", specifier = ">=25.0.0" },
@@ -605,6 +607,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/6f/0a4bde98235f954232eb99f8aba86dd9d3a08b0365d8d0aeb8acfeae6517/google_cloud_billing_budgets-1.18.0.tar.gz", hash = "sha256:fbd1aa94e18edc59f4be9e1e02951fdaabae0cb55a0c6579c2358caa6e799ec3", size = 109096, upload-time = "2025-10-17T02:34:01.303Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/35/55/02d17f95fe10a7d3dc8d97798d5748642afa2932bad91542132b2a5438b9/google_cloud_billing_budgets-1.18.0-py3-none-any.whl", hash = "sha256:944a8a1258cf67b34d175a4da735e469ddd403c1de62967cdb269a8ae3f82fd7", size = 108212, upload-time = "2025-10-17T02:31:19.612Z" },
+]
+
+[[package]]
+name = "google-cloud-monitoring"
+version = "2.28.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bc/b8/7f68a7738cbfef610af532b2fc758e39d852fc93ed3a31bd0e76fd45d2fd/google_cloud_monitoring-2.28.0.tar.gz", hash = "sha256:25175590907e038add644b5b744941d221776342924637095a879973a7c0ac37", size = 393321, upload-time = "2025-10-14T15:42:55.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/d3/02dcf5376cb4b47b9c06eba36d80700d5b0a1510f3fcd47d3abbe4b0f0a3/google_cloud_monitoring-2.28.0-py3-none-any.whl", hash = "sha256:64f4c57cc465dd51cceffe559f0ec6fa9f96aa6d82790cd8d3af6d5cc3795160", size = 384670, upload-time = "2025-10-14T15:42:41.911Z" },
 ]
 
 [[package]]

@@ -21,6 +21,7 @@ dependencies = [
     "google-genai>=1.0.0",
     "google-cloud-billing>=1.14.0",
     "google-cloud-billing-budgets>=1.14.0",
+    "google-cloud-monitoring>=2.21.0",
 ]
 
 [dependency-groups]

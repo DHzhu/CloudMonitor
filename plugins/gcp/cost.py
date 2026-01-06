@@ -79,31 +79,41 @@ class GCPCostMonitor(BaseMonitor):
     ) -> MonitorResult:
         """同步获取预算数据（在线程池中执行）"""
         import json
+        from datetime import datetime, timedelta, timezone
 
         try:
             from google.cloud.billing import budgets_v1
+            from google.cloud import monitoring_v3
             from google.oauth2 import service_account
         except ImportError:
             return self._create_error_result(
-                "请安装 google-cloud-billing-budgets 依赖"
+                "请安装 google-cloud-billing-budgets 和 google-cloud-monitoring 依赖"
             )
 
         try:
             # 解析服务账号 JSON
             if service_account_json.startswith("{"):
                 service_account_info = json.loads(service_account_json)
+                project_id = service_account_info.get("project_id", "")
                 credentials = service_account.Credentials.from_service_account_info(
                     service_account_info,
-                    scopes=["https://www.googleapis.com/auth/cloud-billing"],
+                    scopes=[
+                        "https://www.googleapis.com/auth/cloud-billing",
+                        "https://www.googleapis.com/auth/monitoring.read",
+                    ],
                 )
             else:
                 credentials = service_account.Credentials.from_service_account_file(
                     service_account_json,
-                    scopes=["https://www.googleapis.com/auth/cloud-billing"],
+                    scopes=[
+                        "https://www.googleapis.com/auth/cloud-billing",
+                        "https://www.googleapis.com/auth/monitoring.read",
+                    ],
                 )
+                project_id = ""
 
             # 创建 Budgets 客户端
-            client = budgets_v1.BudgetServiceClient(credentials=credentials)
+            budget_client = budgets_v1.BudgetServiceClient(credentials=credentials)
 
             # 格式化计费账户名称
             if not billing_account_id.startswith("billingAccounts/"):
@@ -113,7 +123,7 @@ class GCPCostMonitor(BaseMonitor):
 
             # 列出所有预算
             try:
-                budgets = list(client.list_budgets(parent=parent))
+                budgets = list(budget_client.list_budgets(parent=parent))
             except Exception as e:
                 error_msg = str(e)
                 error_lower = error_msg.lower()
@@ -147,56 +157,138 @@ class GCPCostMonitor(BaseMonitor):
                     ]
                 )
 
+            # 尝试获取预算使用率（通过 Cloud Monitoring）
+            budget_usage = {}
+            if project_id:
+                try:
+                    monitoring_client = monitoring_v3.MetricServiceClient(credentials=credentials)
+                    
+                    # 查询预算使用率指标
+                    now = datetime.now(timezone.utc)
+                    interval = monitoring_v3.TimeInterval(
+                        end_time={"seconds": int(now.timestamp())},
+                        start_time={"seconds": int((now - timedelta(hours=1)).timestamp())},
+                    )
+                    
+                    # 构造查询
+                    results = monitoring_client.list_time_series(
+                        request={
+                            "name": f"projects/{project_id}",
+                            "filter": 'metric.type = "billing.googleapis.com/billing/budget/amount_used_ratio"',
+                            "interval": interval,
+                            "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+                        }
+                    )
+                    
+                    for series in results:
+                        budget_name = series.resource.labels.get("budget_name", "")
+                        if series.points:
+                            # 获取最新的使用率
+                            usage_ratio = series.points[0].value.double_value
+                            budget_usage[budget_name] = usage_ratio
+                            
+                except Exception as e:
+                    # Cloud Monitoring 查询失败，继续使用预算信息
+                    print(f"Cloud Monitoring 查询失败: {e}")
+
             # 解析预算信息
-            metrics = []
             total_budget = 0.0
             total_spent = 0.0
+            budget_details = []
 
             for budget in budgets:
                 budget_name = budget.display_name or "未命名预算"
+                budget_id = budget.name.split("/")[-1] if budget.name else ""
                 
                 # 获取预算金额
                 budget_amount = 0.0
+                currency = "USD"
                 if budget.amount and budget.amount.specified_amount:
                     budget_amount = float(budget.amount.specified_amount.units or 0)
                     budget_amount += float(budget.amount.specified_amount.nanos or 0) / 1e9
+                    currency = budget.amount.specified_amount.currency_code or "USD"
                 
-                total_budget += budget_amount
-
-                # 获取已花费金额（从 threshold_rules 的 spend_basis 推断）
-                spent_percent = 0.0
-                if budget.budget_filter:
-                    # 预算过滤器存在，说明预算已配置
-                    pass
-
-                # 添加预算详情
                 if budget_amount > 0:
-                    metrics.append(
+                    total_budget += budget_amount
+                
+                # 获取使用率
+                usage_ratio = budget_usage.get(budget_id, budget_usage.get(budget_name, None))
+                spent_amount = None
+                if usage_ratio is not None and budget_amount > 0:
+                    spent_amount = budget_amount * usage_ratio
+                    total_spent += spent_amount
+
+                # 构建预算详情
+                budget_details.append({
+                    "name": budget_name,
+                    "amount": budget_amount,
+                    "currency": currency,
+                    "usage_ratio": usage_ratio,
+                    "spent": spent_amount,
+                })
+
+            # 汇总信息
+            summary_metrics = []
+            
+            # 如果有支出数据，显示总支出
+            if total_spent > 0:
+                usage_percent = (total_spent / total_budget * 100) if total_budget > 0 else 0
+                status = "normal" if usage_percent < 80 else ("warning" if usage_percent < 100 else "error")
+                summary_metrics.append(
+                    MetricData(
+                        label="本月支出",
+                        value=f"${total_spent:.2f}",
+                        unit=f"/ ${total_budget:.2f}",
+                        status=status,
+                        trend="up" if usage_percent > 50 else "flat",
+                    )
+                )
+                summary_metrics.append(
+                    MetricData(
+                        label="使用进度",
+                        value=f"{usage_percent:.1f}%",
+                        status=status,
+                    )
+                )
+            else:
+                # 没有支出数据，只显示预算信息
+                summary_metrics.append(
+                    MetricData(
+                        label="预算总数",
+                        value=str(len(budgets)),
+                        unit="个",
+                        status="normal",
+                    )
+                )
+                if total_budget > 0:
+                    summary_metrics.append(
                         MetricData(
-                            label=self._shorten_name(budget_name),
-                            value=f"${budget_amount:.2f}",
+                            label="预算总额",
+                            value=f"${total_budget:.2f}",
+                            unit="USD",
                             status="normal",
                         )
                     )
 
-            # 汇总信息
-            summary_metrics = [
-                MetricData(
-                    label="预算总数",
-                    value=str(len(budgets)),
-                    unit="个",
-                    status="normal",
-                ),
-                MetricData(
-                    label="预算总额",
-                    value=f"${total_budget:.2f}" if total_budget > 0 else "未设置",
-                    unit="USD" if total_budget > 0 else "",
-                    status="normal",
-                ),
-            ]
-
-            # 添加各预算详情（最多显示 4 个）
-            summary_metrics.extend(metrics[:4])
+            # 添加各预算详情（最多显示 3 个）
+            for detail in budget_details[:3]:
+                if detail["spent"] is not None:
+                    usage_pct = detail["usage_ratio"] * 100 if detail["usage_ratio"] else 0
+                    status = "normal" if usage_pct < 80 else ("warning" if usage_pct < 100 else "error")
+                    value = f"${detail['spent']:.2f} / ${detail['amount']:.2f} ({usage_pct:.0f}%)"
+                elif detail["amount"] > 0:
+                    value = f"${detail['amount']:.2f}"
+                    status = "normal"
+                else:
+                    continue
+                    
+                summary_metrics.append(
+                    MetricData(
+                        label=self._shorten_name(detail["name"]),
+                        value=value,
+                        status=status,
+                    )
+                )
 
             return self._create_success_result(summary_metrics)
 
