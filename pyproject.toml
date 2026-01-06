@@ -21,7 +21,7 @@ dependencies = [
     "google-genai>=1.0.0",
     "google-cloud-billing>=1.14.0",
     "google-cloud-billing-budgets>=1.14.0",
-    "google-cloud-monitoring>=2.21.0",
+    "google-cloud-bigquery>=3.25.0",
 ]
 
 [dependency-groups]
@@ -32,6 +32,7 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pyinstaller>=6.11.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.ruff]

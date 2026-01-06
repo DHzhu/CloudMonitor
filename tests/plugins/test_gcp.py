@@ -21,7 +21,7 @@ class TestGCPCostMonitor:
             alias="测试 GCP",
             credentials={
                 "service_account_json": '{"type": "service_account", "project_id": "test"}',
-                "gcp_billing_account": "XXXXXX-XXXXXX-XXXXXX",
+                "gcp_bigquery_table": "project.dataset.gcp_billing_export_v1_XXXX",
             },
         )
 
@@ -40,7 +40,7 @@ class TestGCPCostMonitor:
     def test_required_credentials(self, monitor: GCPCostMonitor) -> None:
         """测试必需凭据"""
         assert "service_account_json" in monitor.required_credentials
-        assert "gcp_billing_account" in monitor.required_credentials
+        assert "gcp_bigquery_table" in monitor.required_credentials
 
     def test_icon_path(self, monitor: GCPCostMonitor) -> None:
         """测试图标路径"""
@@ -58,41 +58,41 @@ class TestGCPCostMonitor:
         result = await monitor.fetch_data()
 
         assert result.overall_status == "error"
-        assert "未配置 GCP 凭据" in (result.raw_error or "")
+        assert "未配置" in (result.raw_error or "")
 
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: GCPCostMonitor) -> None:
-        """测试成功获取预算信息"""
+        """测试成功获取费用信息"""
         mock_result = MonitorResult(
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="预算总数", value="2", unit="个", status="normal"),
-                MetricData(label="预算总额", value="$100.00", unit="USD", status="normal"),
+                MetricData(label="本月费用", value="$50.00", unit="USD", status="normal"),
+                MetricData(label="Compute Engine", value="$30.00", status="normal"),
             ],
         )
 
-        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_cost_from_bigquery", return_value=mock_result):
             result = await monitor.fetch_data()
 
         assert result.overall_status == "normal"
-        assert result.metrics[0].value == "2"
+        assert result.metrics[0].value == "$50.00"
 
     @pytest.mark.asyncio
-    async def test_fetch_data_no_budgets(self, monitor: GCPCostMonitor) -> None:
-        """测试无预算时返回警告"""
+    async def test_fetch_data_no_cost(self, monitor: GCPCostMonitor) -> None:
+        """测试无费用数据"""
         mock_result = MonitorResult(
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="预算状态", value="无预算", status="warning"),
+                MetricData(label="本月费用", value="$0.00", status="normal"),
             ],
         )
 
-        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_cost_from_bigquery", return_value=mock_result):
             result = await monitor.fetch_data()
 
-        assert result.overall_status == "warning"
+        assert result.overall_status == "normal"
 
     @pytest.mark.asyncio
     async def test_fetch_data_auth_error(self, monitor: GCPCostMonitor) -> None:
@@ -104,7 +104,7 @@ class TestGCPCostMonitor:
             raw_error="GCP 凭据无效",
         )
 
-        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_cost_from_bigquery", return_value=mock_result):
             result = await monitor.fetch_data()
 
         assert result.overall_status == "error"
@@ -130,7 +130,7 @@ class TestGCPCostMonitor:
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="预算总数", value="2", unit="个", status="normal"),
+                MetricData(label="本月费用", value="$50.00", unit="USD", status="normal"),
             ],
         )
 
@@ -159,3 +159,67 @@ class TestGCPCostMonitor:
         shortened = monitor._shorten_name(long_name)
         assert len(shortened) <= 23  # 20 + "..."
         assert shortened.endswith("...")
+
+
+class TestGCPCostMonitorBigQuery:
+    """GCPCostMonitor BigQuery 方法测试"""
+
+    @pytest.fixture
+    def monitor(self) -> GCPCostMonitor:
+        """创建测试用监控实例"""
+        return GCPCostMonitor(
+            service_id="test_gcp_cost",
+            alias="测试 GCP",
+            credentials={
+                "service_account_json": '{"type": "service_account", "project_id": "test"}',
+                "gcp_bigquery_table": "project.dataset.gcp_billing_export_v1_XXXX",
+            },
+        )
+
+    def test_fetch_cost_bigquery_invalid_json_format(self, monitor: GCPCostMonitor) -> None:
+        """测试无效的 JSON 格式"""
+        result = monitor._fetch_cost_from_bigquery(
+            "{invalid json}",
+            "project.dataset.table"
+        )
+        assert result.overall_status == "error"
+        assert "JSON" in (result.raw_error or "")
+
+    def test_fetch_cost_bigquery_file_not_found(self, monitor: GCPCostMonitor) -> None:
+        """测试文件路径不存在"""
+        result = monitor._fetch_cost_from_bigquery(
+            "/path/to/nonexistent/file.json",
+            "project.dataset.table"
+        )
+        assert result.overall_status == "error"
+        assert "不存在" in (result.raw_error or "") or "错误" in (result.raw_error or "")
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_missing_table(self) -> None:
+        """测试缺少 BigQuery 表配置"""
+        monitor = GCPCostMonitor(
+            service_id="test",
+            alias="测试",
+            credentials={
+                "service_account_json": '{"type": "service_account", "project_id": "test"}',
+                # 缺少 gcp_bigquery_table
+            },
+        )
+        result = await monitor.fetch_data()
+        assert result.overall_status == "error"
+        assert "未配置" in (result.raw_error or "")
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_missing_service_account(self) -> None:
+        """测试缺少服务账号配置"""
+        monitor = GCPCostMonitor(
+            service_id="test",
+            alias="测试",
+            credentials={
+                "gcp_bigquery_table": "project.dataset.table",
+                # 缺少 service_account_json
+            },
+        )
+        result = await monitor.fetch_data()
+        assert result.overall_status == "error"
+        assert "未配置" in (result.raw_error or "")

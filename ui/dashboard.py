@@ -367,11 +367,27 @@ class DashboardPage(ft.Container):
                 self.app_page.update()
 
     def refresh(self) -> None:
-        """刷新页面内容（仅重建 UI，不刷新数据）"""
-        # 重新构建内容，使用已有的缓存数据
+        """刷新页面内容"""
+        # 记录之前已有的服务 ID
+        old_service_ids = set(self.cards.keys())
+        
+        # 重新构建内容
         self.content = self._build_content()
         self.app_page.update()
-        # 不再自动触发数据刷新，用户可手动点击刷新按钮
+        
+        # 检测新添加的服务（在 _build_grid 中已更新 self.cards）
+        new_service_ids = set(self.cards.keys()) - old_service_ids
+        
+        # 如果有新服务且没有缓存，触发它们的数据刷新
+        if new_service_ids:
+            self.app_page.run_task(self._refresh_new_services, new_service_ids)
+
+    async def _refresh_new_services(self, service_ids: set[str]) -> None:
+        """刷新新添加的服务"""
+        for monitor in self.monitors:
+            if monitor.service_id in service_ids:
+                await self._refresh_monitor(monitor)
+        self.app_page.update()
 
     async def initial_load(self) -> None:
         """

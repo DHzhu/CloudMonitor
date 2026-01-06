@@ -19,16 +19,16 @@ project_root = Path(SPECPATH)
 # 收集 Google Cloud 相关模块的所有资源
 gcp_budgets_datas, gcp_budgets_binaries, gcp_budgets_imports = collect_all('google.cloud.billing.budgets_v1')
 gcp_billing_datas, gcp_billing_binaries, gcp_billing_imports = collect_all('google.cloud.billing_v1')
-gcp_monitoring_datas, gcp_monitoring_binaries, gcp_monitoring_imports = collect_all('google.cloud.monitoring_v3')
+gcp_bigquery_datas, gcp_bigquery_binaries, gcp_bigquery_imports = collect_all('google.cloud.bigquery')
 
 # 收集 grpc 相关模块
 grpc_modules = collect_submodules('grpc')
 google_api_modules = collect_submodules('google.api_core')
 
 # 合并所有额外数据
-extra_datas = gcp_budgets_datas + gcp_billing_datas + gcp_monitoring_datas
-extra_binaries = gcp_budgets_binaries + gcp_billing_binaries + gcp_monitoring_binaries
-extra_imports = gcp_budgets_imports + gcp_billing_imports + gcp_monitoring_imports + grpc_modules + google_api_modules
+extra_datas = gcp_budgets_datas + gcp_billing_datas + gcp_bigquery_datas
+extra_binaries = gcp_budgets_binaries + gcp_billing_binaries + gcp_bigquery_binaries
+extra_imports = gcp_budgets_imports + gcp_billing_imports + gcp_bigquery_imports + grpc_modules + google_api_modules
 
 # 分析模块依赖
 a = Analysis(
@@ -76,7 +76,7 @@ a = Analysis(
         'google.generativeai',
         'google.cloud.billing_v1',
         'google.cloud.billing.budgets_v1',
-        'google.cloud.monitoring_v3',
+        'google.cloud.bigquery',
         'google.oauth2.service_account',
         'google.protobuf',
         # 其他依赖

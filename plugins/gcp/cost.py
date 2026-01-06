@@ -42,27 +42,32 @@ class GCPCostMonitor(BaseMonitor):
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["service_account_json", "gcp_billing_account"]
+        # service_account_json: 服务账号 JSON
+        # gcp_bigquery_table: BigQuery 导出表（格式: project.dataset.table）
+        return ["service_account_json", "gcp_bigquery_table"]
 
     async def fetch_data(self) -> MonitorResult:
         """
-        获取 GCP 预算和支出信息
+        获取 GCP 费用信息（通过 BigQuery 导出）
         """
         import asyncio
 
         service_account_json = self.credentials.get("service_account_json", "")
-        billing_account_id = self.credentials.get("gcp_billing_account", "")
+        bigquery_table = self.credentials.get("gcp_bigquery_table", "")
 
-        if not service_account_json or not billing_account_id:
-            return self._create_error_result("未配置 GCP 凭据")
+        if not service_account_json:
+            return self._create_error_result("未配置服务账号 JSON")
+        
+        if not bigquery_table:
+            return self._create_error_result("未配置 BigQuery 费用导出表")
 
         try:
             # 添加 30 秒超时
             result = await asyncio.wait_for(
                 run_blocking(
-                    self._fetch_budgets_sync,
+                    self._fetch_cost_from_bigquery,
                     service_account_json,
-                    billing_account_id,
+                    bigquery_table,
                 ),
                 timeout=30.0,
             )
@@ -72,225 +77,121 @@ class GCPCostMonitor(BaseMonitor):
         except Exception as e:
             return self._create_error_result(f"获取费用失败: {e!s}")
 
-    def _fetch_budgets_sync(
+    def _fetch_cost_from_bigquery(
         self,
         service_account_json: str,
-        billing_account_id: str,
+        bigquery_table: str,
     ) -> MonitorResult:
-        """同步获取预算数据（在线程池中执行）"""
+        """从 BigQuery 获取费用数据"""
         import json
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime
 
         try:
-            from google.cloud.billing import budgets_v1
-            from google.cloud import monitoring_v3
+            from google.cloud import bigquery
             from google.oauth2 import service_account
         except ImportError:
             return self._create_error_result(
-                "请安装 google-cloud-billing-budgets 和 google-cloud-monitoring 依赖"
+                "请安装 google-cloud-bigquery 依赖"
             )
 
         try:
             # 解析服务账号 JSON
             if service_account_json.startswith("{"):
                 service_account_info = json.loads(service_account_json)
-                project_id = service_account_info.get("project_id", "")
                 credentials = service_account.Credentials.from_service_account_info(
                     service_account_info,
-                    scopes=[
-                        "https://www.googleapis.com/auth/cloud-billing",
-                        "https://www.googleapis.com/auth/monitoring.read",
-                    ],
                 )
             else:
                 credentials = service_account.Credentials.from_service_account_file(
                     service_account_json,
-                    scopes=[
-                        "https://www.googleapis.com/auth/cloud-billing",
-                        "https://www.googleapis.com/auth/monitoring.read",
-                    ],
                 )
-                project_id = ""
 
-            # 创建 Budgets 客户端
-            budget_client = budgets_v1.BudgetServiceClient(credentials=credentials)
+            # 创建 BigQuery 客户端
+            client = bigquery.Client(credentials=credentials)
 
-            # 格式化计费账户名称
-            if not billing_account_id.startswith("billingAccounts/"):
-                parent = f"billingAccounts/{billing_account_id}"
-            else:
-                parent = billing_account_id
+            # 获取当前月份
+            now = datetime.now()
+            current_month = now.strftime("%Y-%m")
+            
+            # 构造查询 - 获取当月费用总计和按服务分类
+            query = f"""
+            SELECT
+                service.description AS service_name,
+                SUM(cost) AS total_cost,
+                currency
+            FROM `{bigquery_table}`
+            WHERE invoice.month = '{current_month.replace('-', '')}'
+            GROUP BY service.description, currency
+            ORDER BY total_cost DESC
+            LIMIT 10
+            """
 
-            # 列出所有预算
             try:
-                budgets = list(budget_client.list_budgets(parent=parent))
+                query_job = client.query(query)
+                results = list(query_job.result())
             except Exception as e:
                 error_msg = str(e)
                 error_lower = error_msg.lower()
-                if "permission" in error_lower or "forbidden" in error_lower or "403" in error_msg:
+                
+                if "not found" in error_lower or "404" in error_msg:
                     return self._create_error_result(
-                        "权限不足：请为服务账号添加 'Billing Account Viewer' 角色"
+                        f"表 '{bigquery_table}' 不存在，请检查表名格式"
                     )
-                elif "not found" in error_lower or "404" in error_msg:
+                elif "permission" in error_lower or "403" in error_msg:
                     return self._create_error_result(
-                        f"计费账户 '{billing_account_id}' 不存在"
+                        "权限不足：请为服务账号添加 BigQuery Data Viewer 角色"
                     )
-                elif "api" in error_lower and "enabled" in error_lower:
+                elif "access denied" in error_lower:
                     return self._create_error_result(
-                        "请在 GCP 控制台启用 Cloud Billing Budget API"
+                        "访问被拒绝：请检查服务账号权限"
                     )
-                return self._create_error_result(f"API 错误: {error_msg}")
+                return self._create_error_result(f"BigQuery 错误: {error_msg}")
 
-            if not budgets:
+            if not results:
                 return self._create_success_result(
                     [
                         MetricData(
-                            label="预算状态",
-                            value="无预算",
-                            status="warning",
+                            label="本月费用",
+                            value="$0.00",
+                            status="normal",
                         ),
                         MetricData(
                             label="提示",
-                            value="请在 GCP 控制台创建预算",
+                            value="本月暂无费用数据",
                             status="normal",
                         ),
                     ]
                 )
 
-            # 尝试获取预算使用率（通过 Cloud Monitoring）
-            budget_usage = {}
-            if project_id:
-                try:
-                    monitoring_client = monitoring_v3.MetricServiceClient(credentials=credentials)
-                    
-                    # 查询预算使用率指标
-                    now = datetime.now(timezone.utc)
-                    interval = monitoring_v3.TimeInterval(
-                        end_time={"seconds": int(now.timestamp())},
-                        start_time={"seconds": int((now - timedelta(hours=1)).timestamp())},
-                    )
-                    
-                    # 构造查询
-                    results = monitoring_client.list_time_series(
-                        request={
-                            "name": f"projects/{project_id}",
-                            "filter": 'metric.type = "billing.googleapis.com/billing/budget/amount_used_ratio"',
-                            "interval": interval,
-                            "view": monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
-                        }
-                    )
-                    
-                    for series in results:
-                        budget_name = series.resource.labels.get("budget_name", "")
-                        if series.points:
-                            # 获取最新的使用率
-                            usage_ratio = series.points[0].value.double_value
-                            budget_usage[budget_name] = usage_ratio
-                            
-                except Exception as e:
-                    # Cloud Monitoring 查询失败，继续使用预算信息
-                    print(f"Cloud Monitoring 查询失败: {e}")
-
-            # 解析预算信息
-            total_budget = 0.0
-            total_spent = 0.0
-            budget_details = []
-
-            for budget in budgets:
-                budget_name = budget.display_name or "未命名预算"
-                budget_id = budget.name.split("/")[-1] if budget.name else ""
-                
-                # 获取预算金额
-                budget_amount = 0.0
-                currency = "USD"
-                if budget.amount and budget.amount.specified_amount:
-                    budget_amount = float(budget.amount.specified_amount.units or 0)
-                    budget_amount += float(budget.amount.specified_amount.nanos or 0) / 1e9
-                    currency = budget.amount.specified_amount.currency_code or "USD"
-                
-                if budget_amount > 0:
-                    total_budget += budget_amount
-                
-                # 获取使用率
-                usage_ratio = budget_usage.get(budget_id, budget_usage.get(budget_name, None))
-                spent_amount = None
-                if usage_ratio is not None and budget_amount > 0:
-                    spent_amount = budget_amount * usage_ratio
-                    total_spent += spent_amount
-
-                # 构建预算详情
-                budget_details.append({
-                    "name": budget_name,
-                    "amount": budget_amount,
-                    "currency": currency,
-                    "usage_ratio": usage_ratio,
-                    "spent": spent_amount,
-                })
-
-            # 汇总信息
-            summary_metrics = []
+            # 计算总费用
+            total_cost = sum(row.total_cost for row in results)
+            currency = results[0].currency if results else "USD"
             
-            # 如果有支出数据，显示总支出
-            if total_spent > 0:
-                usage_percent = (total_spent / total_budget * 100) if total_budget > 0 else 0
-                status = "normal" if usage_percent < 80 else ("warning" if usage_percent < 100 else "error")
-                summary_metrics.append(
-                    MetricData(
-                        label="本月支出",
-                        value=f"${total_spent:.2f}",
-                        unit=f"/ ${total_budget:.2f}",
-                        status=status,
-                        trend="up" if usage_percent > 50 else "flat",
-                    )
-                )
-                summary_metrics.append(
-                    MetricData(
-                        label="使用进度",
-                        value=f"{usage_percent:.1f}%",
-                        status=status,
-                    )
-                )
-            else:
-                # 没有支出数据，只显示预算信息
-                summary_metrics.append(
-                    MetricData(
-                        label="预算总数",
-                        value=str(len(budgets)),
-                        unit="个",
-                        status="normal",
-                    )
-                )
-                if total_budget > 0:
-                    summary_metrics.append(
+            # 构建指标
+            metrics = [
+                MetricData(
+                    label="本月费用",
+                    value=f"${total_cost:.2f}" if total_cost >= 0 else f"-${abs(total_cost):.2f}",
+                    unit=currency,
+                    status="normal" if total_cost < 100 else ("warning" if total_cost < 500 else "error"),
+                    trend="up" if total_cost > 0 else "flat",
+                ),
+            ]
+
+            # 添加服务明细（最多 4 个）
+            for row in results[:4]:
+                if row.total_cost != 0:
+                    service_name = self._shorten_name(row.service_name or "未知服务")
+                    cost_value = row.total_cost
+                    metrics.append(
                         MetricData(
-                            label="预算总额",
-                            value=f"${total_budget:.2f}",
-                            unit="USD",
+                            label=service_name,
+                            value=f"${cost_value:.2f}" if cost_value >= 0 else f"-${abs(cost_value):.2f}",
                             status="normal",
                         )
                     )
 
-            # 添加各预算详情（最多显示 3 个）
-            for detail in budget_details[:3]:
-                if detail["spent"] is not None:
-                    usage_pct = detail["usage_ratio"] * 100 if detail["usage_ratio"] else 0
-                    status = "normal" if usage_pct < 80 else ("warning" if usage_pct < 100 else "error")
-                    value = f"${detail['spent']:.2f} / ${detail['amount']:.2f} ({usage_pct:.0f}%)"
-                elif detail["amount"] > 0:
-                    value = f"${detail['amount']:.2f}"
-                    status = "normal"
-                else:
-                    continue
-                    
-                summary_metrics.append(
-                    MetricData(
-                        label=self._shorten_name(detail["name"]),
-                        value=value,
-                        status=status,
-                    )
-                )
-
-            return self._create_success_result(summary_metrics)
+            return self._create_success_result(metrics)
 
         except json.JSONDecodeError:
             return self._create_error_result("服务账号 JSON 格式无效")
@@ -299,7 +200,7 @@ class GCPCostMonitor(BaseMonitor):
         except Exception as e:
             error_str = str(e).lower()
             if "permission" in error_str or "forbidden" in error_str:
-                return self._create_error_result("需要 Billing Account Viewer 权限")
+                return self._create_error_result("需要 BigQuery Data Viewer 权限")
             elif "authentication" in error_str or "credential" in error_str:
                 return self._create_error_result("GCP 凭据无效")
             return self._create_error_result(f"GCP 错误: {e!s}")
