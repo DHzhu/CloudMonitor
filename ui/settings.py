@@ -286,18 +286,23 @@ class SettingsPage(ft.Container):
         if not alias:
             alias = plugin_type
 
-        # 添加服务
-        instance = self.plugin_mgr.add_service(
-            plugin_type=plugin_type,
-            alias=alias,
-            credentials=values,
-        )
+        try:
+            # 添加服务
+            instance = self.plugin_mgr.add_service(
+                plugin_type=plugin_type,
+                alias=alias,
+                credentials=values,
+            )
 
-        if instance:
-            SnackBar.show(self.app_page, f"服务 '{alias}' 添加成功")
-            self.refresh()
-        else:
-            SnackBar.show(self.app_page, "添加服务失败", is_error=True)
+            if instance:
+                SnackBar.show(self.app_page, f"服务 '{alias}' 添加成功")
+                self.refresh()
+            else:
+                SnackBar.show(self.app_page, "添加服务失败", is_error=True)
+        except RuntimeError as e:
+            SnackBar.show(self.app_page, str(e), is_error=True)
+        except Exception as e:
+            SnackBar.show(self.app_page, f"添加服务失败: {e}", is_error=True)
 
         # 关闭对话框
         self._close_all_dialogs()

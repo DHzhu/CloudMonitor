@@ -246,7 +246,11 @@ class PluginManager:
         service_id = self.config_mgr.add_service(plugin_type, alias)
 
         # 存储凭据
-        self.security_mgr.set_credentials(service_id, credentials)
+        success = self.security_mgr.set_credentials(service_id, credentials)
+        if not success:
+            # 凭据存储失败，回滚服务配置
+            self.config_mgr.delete_service(service_id)
+            raise RuntimeError("凭据存储失败，可能是数据过长。请检查输入内容。")
 
         # 获取配置并创建实例
         service_config = self.config_mgr.get_service(service_id)

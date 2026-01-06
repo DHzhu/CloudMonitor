@@ -75,3 +75,53 @@ class TestSecurityManager:
         """测试键生成"""
         key = security_mgr._make_key("service1", "api_key")
         assert key == "CloudMonitor:service1:api_key"
+
+    def test_chunked_credential_storage(self, security_mgr: SecurityManager) -> None:
+        """测试分块凭据存储（大凭据）"""
+        # 创建一个超过 MAX_CREDENTIAL_SIZE 的大凭据
+        large_value = "A" * (security_mgr.MAX_CREDENTIAL_SIZE + 500)
+
+        result = security_mgr.set_credential("service1", "large_key", large_value)
+        assert result is True
+
+        # 验证能正确读取
+        retrieved = security_mgr.get_credential("service1", "large_key")
+        assert retrieved == large_value
+
+    def test_chunked_credential_with_unicode(self, security_mgr: SecurityManager) -> None:
+        """测试分块凭据存储（包含 Unicode 字符）"""
+        # 创建包含中文的大凭据，模拟 JSON 数据
+        json_like = '{"name": "测试服务", "key": "' + "X" * 2000 + '"}'
+
+        result = security_mgr.set_credential("service1", "json_data", json_like)
+        assert result is True
+
+        retrieved = security_mgr.get_credential("service1", "json_data")
+        assert retrieved == json_like
+
+    def test_delete_chunked_credential(self, security_mgr: SecurityManager) -> None:
+        """测试删除分块凭据"""
+        large_value = "B" * (security_mgr.MAX_CREDENTIAL_SIZE + 500)
+        security_mgr.set_credential("service1", "large_key", large_value)
+
+        result = security_mgr.delete_credential("service1", "large_key")
+        assert result is True
+
+        # 验证已删除
+        retrieved = security_mgr.get_credential("service1", "large_key")
+        assert retrieved is None
+
+    def test_update_chunked_credential(self, security_mgr: SecurityManager) -> None:
+        """测试更新分块凭据"""
+        # 先存储一个大凭据
+        large_value1 = "C" * (security_mgr.MAX_CREDENTIAL_SIZE + 500)
+        security_mgr.set_credential("service1", "large_key", large_value1)
+
+        # 更新为另一个大凭据
+        large_value2 = "D" * (security_mgr.MAX_CREDENTIAL_SIZE + 800)
+        result = security_mgr.set_credential("service1", "large_key", large_value2)
+        assert result is True
+
+        # 验证读取到的是新值
+        retrieved = security_mgr.get_credential("service1", "large_key")
+        assert retrieved == large_value2

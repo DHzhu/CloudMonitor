@@ -42,8 +42,9 @@ class SecurityManager:
         """
         return f"{self.service_name}:{service_id}:{credential_name}"
 
-    # Windows Credential Manager 单条凭据最大字节数限制
-    MAX_CREDENTIAL_SIZE = 2000
+    # Windows Credential Manager 单条凭据最大约 2560 字节
+    # Base64 编码后约 1.37 倍大小，所以原始数据限制设为 1200
+    MAX_CREDENTIAL_SIZE = 1200
 
     def set_credential(self, service_id: str, credential_name: str, value: str) -> bool:
         """
@@ -57,29 +58,38 @@ class SecurityManager:
         Returns:
             bool: 是否存储成功
         """
+        import base64
+
         try:
             key = self._make_key(service_id, credential_name)
+            value_bytes = value.encode("utf-8")
 
             # 检查凭据长度，超长则分块存储
-            if len(value.encode("utf-8")) > self.MAX_CREDENTIAL_SIZE:
-                return self._set_chunked_credential(key, value)
+            if len(value_bytes) > self.MAX_CREDENTIAL_SIZE:
+                return self._set_chunked_credential(key, value_bytes)
 
             keyring.set_password(self.service_name, key, value)
             return True
         except KeyringError:
             return False
+        except Exception as e:
+            print(f"Set credential error: {e}")
+            return False
 
-    def _set_chunked_credential(self, key: str, value: str) -> bool:
-        """分块存储超长凭据"""
+    def _set_chunked_credential(self, key: str, value_bytes: bytes) -> bool:
+        """分块存储超长凭据（使用 Base64 编码）"""
+        import base64
+
         try:
-            # 将值转换为字节并分块
-            value_bytes = value.encode("utf-8")
+            # 分块原始字节数据
             chunks = []
             for i in range(0, len(value_bytes), self.MAX_CREDENTIAL_SIZE):
-                chunk = value_bytes[i : i + self.MAX_CREDENTIAL_SIZE]
-                chunks.append(chunk.decode("utf-8", errors="replace"))
+                chunk_bytes = value_bytes[i : i + self.MAX_CREDENTIAL_SIZE]
+                # 使用 Base64 编码确保 ASCII 安全
+                chunk_b64 = base64.b64encode(chunk_bytes).decode("ascii")
+                chunks.append(chunk_b64)
 
-            # 存储块数量
+            # 存储块数量（标记为分块模式）
             keyring.set_password(self.service_name, f"{key}:chunks", str(len(chunks)))
 
             # 存储每个块
@@ -87,7 +97,11 @@ class SecurityManager:
                 keyring.set_password(self.service_name, f"{key}:chunk:{idx}", chunk)
 
             return True
-        except KeyringError:
+        except KeyringError as e:
+            print(f"Chunked credential KeyringError: {e}")
+            return False
+        except Exception as e:
+            print(f"Chunked credential error: {e}")
             return False
 
     def get_credential(self, service_id: str, credential_name: str) -> str | None:
@@ -114,16 +128,24 @@ class SecurityManager:
             return None
 
     def _get_chunked_credential(self, key: str, chunks_count: int) -> str | None:
-        """读取并合并分块凭据"""
+        """读取并合并分块凭据（使用 Base64 解码）"""
+        import base64
+
         try:
-            chunks = []
+            chunks_bytes = []
             for idx in range(chunks_count):
-                chunk = keyring.get_password(self.service_name, f"{key}:chunk:{idx}")
-                if chunk is None:
+                chunk_b64 = keyring.get_password(self.service_name, f"{key}:chunk:{idx}")
+                if chunk_b64 is None:
                     return None
-                chunks.append(chunk)
-            return "".join(chunks)
+                # Base64 解码恢复原始字节
+                chunk_bytes = base64.b64decode(chunk_b64)
+                chunks_bytes.append(chunk_bytes)
+            # 合并字节并解码为字符串
+            return b"".join(chunks_bytes).decode("utf-8")
         except KeyringError:
+            return None
+        except Exception as e:
+            print(f"Get chunked credential error: {e}")
             return None
 
     def delete_credential(self, service_id: str, credential_name: str) -> bool:
