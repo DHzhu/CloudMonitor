@@ -84,12 +84,21 @@ class GeminiQuotaMonitor(BaseMonitor):
                     label="可用模型",
                     value=str(len(available_models)),
                     unit="个",
-                    status="normal",
+                    status="normal" if available_models else "warning",
                 )
             ]
 
+            # 添加 API 状态
+            metrics.append(
+                MetricData(
+                    label="API 状态",
+                    value="正常" if models else "无响应",
+                    status="normal" if models else "error",
+                )
+            )
+
             # 添加模型详情
-            for model_info in available_models[:5]:
+            for model_info in available_models[:4]:
                 input_str = self._format_tokens(model_info["input_token_limit"])
                 output_str = self._format_tokens(model_info["output_token_limit"])
                 metrics.append(

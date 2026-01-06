@@ -362,13 +362,11 @@ class DashboardPage(ft.Container):
                 self.app_page.update()
 
     def refresh(self) -> None:
-        """刷新页面内容"""
-        # 重新构建内容
+        """刷新页面内容（仅重建 UI，不刷新数据）"""
+        # 重新构建内容，使用已有的缓存数据
         self.content = self._build_content()
         self.app_page.update()
-        # 如果有监控服务，触发异步数据刷新
-        if self.monitors:
-            self.app_page.run_task(self._refresh_all_async)
+        # 不再自动触发数据刷新，用户可手动点击刷新按钮
 
     async def initial_load(self) -> None:
         """
