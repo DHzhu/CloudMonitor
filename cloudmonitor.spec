@@ -59,6 +59,7 @@ a = Analysis(
         'azure.mgmt.costmanagement',
         'google.generativeai',
         'google.cloud.billing_v1',
+        'google.cloud.billing_budgets_v1',
         'google.oauth2.service_account',
         # 其他依赖
         'httpx',

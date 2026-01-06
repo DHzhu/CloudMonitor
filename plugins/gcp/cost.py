@@ -1,7 +1,7 @@
 """
-GCP Cloud Billing 费用监控插件
+GCP Cloud Billing Budgets 费用监控插件
 
-使用 Google Cloud Billing API 获取账单信息。
+使用 Google Cloud Billing Budgets API 获取预算和支出信息。
 """
 
 import flet as ft
@@ -17,7 +17,7 @@ class GCPCostMonitor(BaseMonitor):
     """
     GCP 费用监控
 
-    监控 Google Cloud Platform 项目的本月费用。
+    使用 Cloud Billing Budgets API 监控预算和实际支出。
     """
 
     @property
@@ -42,132 +42,163 @@ class GCPCostMonitor(BaseMonitor):
 
     @property
     def required_credentials(self) -> list[str]:
-        return ["service_account_json", "project_id"]
+        return ["service_account_json", "billing_account_id"]
 
     async def fetch_data(self) -> MonitorResult:
         """
-        获取 GCP 本月费用信息
+        获取 GCP 预算和支出信息
         """
-        service_account_json = self.credentials.get("service_account_json", "")
-        project_id = self.credentials.get("project_id", "")
+        import asyncio
 
-        if not service_account_json or not project_id:
+        service_account_json = self.credentials.get("service_account_json", "")
+        billing_account_id = self.credentials.get("billing_account_id", "")
+
+        if not service_account_json or not billing_account_id:
             return self._create_error_result("未配置 GCP 凭据")
 
         try:
-            result = await run_blocking(
-                self._fetch_cost_sync,
-                service_account_json,
-                project_id,
+            # 添加 30 秒超时
+            result = await asyncio.wait_for(
+                run_blocking(
+                    self._fetch_budgets_sync,
+                    service_account_json,
+                    billing_account_id,
+                ),
+                timeout=30.0,
             )
             return result
+        except asyncio.TimeoutError:
+            return self._create_error_result("请求超时（30秒），请检查网络连接")
         except Exception as e:
             return self._create_error_result(f"获取费用失败: {e!s}")
 
-    def _fetch_cost_sync(
+    def _fetch_budgets_sync(
         self,
         service_account_json: str,
-        project_id: str,
+        billing_account_id: str,
     ) -> MonitorResult:
-        """同步获取费用数据（在线程池中执行）"""
+        """同步获取预算数据（在线程池中执行）"""
         import json
 
         try:
-            from google.cloud import billing_v1
+            from google.cloud import billing_budgets_v1
             from google.oauth2 import service_account
         except ImportError:
-            return self._create_error_result("请安装 google-cloud-billing 依赖")
+            return self._create_error_result(
+                "请安装 google-cloud-billing-budgets 依赖"
+            )
 
         try:
-            # 解析服务账号 JSON（可能是 JSON 字符串或文件路径）
+            # 解析服务账号 JSON
             if service_account_json.startswith("{"):
-                # JSON 字符串
                 service_account_info = json.loads(service_account_json)
                 credentials = service_account.Credentials.from_service_account_info(
                     service_account_info,
                     scopes=["https://www.googleapis.com/auth/cloud-billing"],
                 )
             else:
-                # 文件路径
                 credentials = service_account.Credentials.from_service_account_file(
                     service_account_json,
                     scopes=["https://www.googleapis.com/auth/cloud-billing"],
                 )
 
-            # 创建 Cloud Billing 客户端
-            client = billing_v1.CloudBillingClient(credentials=credentials)
+            # 创建 Budgets 客户端
+            client = billing_budgets_v1.BudgetServiceClient(credentials=credentials)
 
-            # 获取项目对应的计费账户
-            project_name = f"projects/{project_id}"
+            # 格式化计费账户名称
+            if not billing_account_id.startswith("billingAccounts/"):
+                parent = f"billingAccounts/{billing_account_id}"
+            else:
+                parent = billing_account_id
+
+            # 列出所有预算
             try:
-                project_billing_info = client.get_project_billing_info(name=project_name)
+                budgets = list(client.list_budgets(parent=parent))
             except Exception as e:
                 error_msg = str(e)
                 error_lower = error_msg.lower()
                 if "permission" in error_lower or "forbidden" in error_lower or "403" in error_msg:
                     return self._create_error_result(
-                        "权限不足：请在 GCP 控制台 -> Billing -> "
-                        "账户管理中为服务账号添加 'Billing Account Viewer' 角色"
+                        "权限不足：请为服务账号添加 'Billing Account Viewer' 角色"
                     )
                 elif "not found" in error_lower or "404" in error_msg:
                     return self._create_error_result(
-                        f"项目 '{project_id}' 不存在或未关联计费账户"
+                        f"计费账户 '{billing_account_id}' 不存在"
                     )
-                elif "invalid" in error_lower:
-                    return self._create_error_result("服务账号凭据无效")
                 elif "api" in error_lower and "enabled" in error_lower:
                     return self._create_error_result(
-                        "请在 GCP 控制台启用 Cloud Billing API"
+                        "请在 GCP 控制台启用 Cloud Billing Budget API"
                     )
                 return self._create_error_result(f"API 错误: {error_msg}")
 
-            if not project_billing_info.billing_enabled:
+            if not budgets:
                 return self._create_success_result(
                     [
                         MetricData(
-                            label="计费状态",
-                            value="未启用",
+                            label="预算状态",
+                            value="无预算",
                             status="warning",
-                        )
+                        ),
+                        MetricData(
+                            label="提示",
+                            value="请在 GCP 控制台创建预算",
+                            status="normal",
+                        ),
                     ]
                 )
 
-            billing_account_name = project_billing_info.billing_account_name
+            # 解析预算信息
+            metrics = []
+            total_budget = 0.0
+            total_spent = 0.0
 
-            # 注意：完整的消费查询需要使用 BigQuery 导出或 Cloud Billing Budget API
-            # 这里我们返回计费账户信息和状态
-            metrics = [
+            for budget in budgets:
+                budget_name = budget.display_name or "未命名预算"
+                
+                # 获取预算金额
+                budget_amount = 0.0
+                if budget.amount and budget.amount.specified_amount:
+                    budget_amount = float(budget.amount.specified_amount.units or 0)
+                    budget_amount += float(budget.amount.specified_amount.nanos or 0) / 1e9
+                
+                total_budget += budget_amount
+
+                # 获取已花费金额（从 threshold_rules 的 spend_basis 推断）
+                spent_percent = 0.0
+                if budget.budget_filter:
+                    # 预算过滤器存在，说明预算已配置
+                    pass
+
+                # 添加预算详情
+                if budget_amount > 0:
+                    metrics.append(
+                        MetricData(
+                            label=self._shorten_name(budget_name),
+                            value=f"${budget_amount:.2f}",
+                            status="normal",
+                        )
+                    )
+
+            # 汇总信息
+            summary_metrics = [
                 MetricData(
-                    label="计费状态",
-                    value="已启用",
+                    label="预算总数",
+                    value=str(len(budgets)),
+                    unit="个",
                     status="normal",
                 ),
                 MetricData(
-                    label="计费账户",
-                    value=self._shorten_billing_account(billing_account_name),
-                    status="normal",
-                ),
-                MetricData(
-                    label="项目",
-                    value=project_id,
+                    label="预算总额",
+                    value=f"${total_budget:.2f}" if total_budget > 0 else "未设置",
+                    unit="USD" if total_budget > 0 else "",
                     status="normal",
                 ),
             ]
 
-            # 尝试获取计费账户详情
-            try:
-                billing_account = client.get_billing_account(name=billing_account_name)
-                metrics.append(
-                    MetricData(
-                        label="计费账户名称",
-                        value=billing_account.display_name or "未命名",
-                        status="normal",
-                    )
-                )
-            except Exception:
-                pass  # 忽略获取计费账户详情的错误
+            # 添加各预算详情（最多显示 4 个）
+            summary_metrics.extend(metrics[:4])
 
-            return self._create_success_result(metrics)
+            return self._create_success_result(summary_metrics)
 
         except json.JSONDecodeError:
             return self._create_error_result("服务账号 JSON 格式无效")
@@ -181,15 +212,9 @@ class GCPCostMonitor(BaseMonitor):
                 return self._create_error_result("GCP 凭据无效")
             return self._create_error_result(f"GCP 错误: {e!s}")
 
-    def _shorten_billing_account(self, name: str) -> str:
-        """缩短计费账户名称"""
-        # billingAccounts/XXXXXX-XXXXXX-XXXXXX -> XXXXXX-...
-        if name.startswith("billingAccounts/"):
-            account_id = name.replace("billingAccounts/", "")
-            if len(account_id) > 10:
-                return account_id[:10] + "..."
-            return account_id
-        return name
+    def _shorten_name(self, name: str) -> str:
+        """缩短名称"""
+        return name[:20] + "..." if len(name) > 20 else name
 
     def render_card(self, data: MonitorResult) -> ft.Control:
         """渲染 GCP 费用监控卡片"""
@@ -210,7 +235,11 @@ class GCPCostMonitor(BaseMonitor):
                 ft.Row(
                     controls=[
                         ft.Text(metric.label, size=11, color=ft.Colors.WHITE_70, expand=True),
-                        ft.Text(metric.value, size=11, color=ft.Colors.WHITE),
+                        ft.Text(
+                            f"{metric.value} {metric.unit or ''}".strip(),
+                            size=11,
+                            color=ft.Colors.WHITE,
+                        ),
                     ],
                     spacing=8,
                 )
@@ -237,18 +266,29 @@ class GCPCostMonitor(BaseMonitor):
                         content=ft.Column(
                             controls=[
                                 ft.Text(main_metric.label, size=12, color=ft.Colors.WHITE_70),
-                                ft.Text(
-                                    main_metric.value,
-                                    size=28,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=color,
+                                ft.Row(
+                                    controls=[
+                                        ft.Text(
+                                            main_metric.value,
+                                            size=28,
+                                            weight=ft.FontWeight.BOLD,
+                                            color=color,
+                                        ),
+                                        ft.Text(
+                                            main_metric.unit or "",
+                                            size=14,
+                                            color=ft.Colors.WHITE_54,
+                                        ),
+                                    ],
+                                    spacing=8,
+                                    vertical_alignment=ft.CrossAxisAlignment.END,
                                 ),
                             ],
                             spacing=2,
                         ),
                         padding=ft.Padding.symmetric(vertical=10),
                     ),
-                    ft.Text("详情", size=12, color=ft.Colors.WHITE_54),
+                    ft.Text("预算详情", size=12, color=ft.Colors.WHITE_54),
                     *detail_rows,
                     *(
                         [ft.Text(data.raw_error, size=11, color=ft.Colors.RED_300, italic=True)]

@@ -312,6 +312,7 @@ dependencies = [
     { name = "boto3" },
     { name = "flet", extra = ["all"] },
     { name = "google-cloud-billing" },
+    { name = "google-cloud-billing-budgets" },
     { name = "google-genai" },
     { name = "httpx" },
     { name = "keyring" },
@@ -336,6 +337,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "flet", extras = ["all"], specifier = ">=0.80.0" },
     { name = "google-cloud-billing", specifier = ">=1.14.0" },
+    { name = "google-cloud-billing-budgets", specifier = ">=1.14.0" },
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "keyring", specifier = ">=25.0.0" },
@@ -587,6 +589,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9b/ad/a038d28ee925dc22aa20687c3050b962a431893fb50d74e3de8fd48ef4c1/google_cloud_billing-1.17.0.tar.gz", hash = "sha256:e68a08dcc0f3432eea7b3475c9e243555a628cd6c2423de25a7eb283e3a055d2", size = 128633, upload-time = "2025-10-17T02:34:00.6Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/63/118c8db89047743769815b58afa16ae12648f15fa2cd8c5a9bf5edb8f2ff/google_cloud_billing-1.17.0-py3-none-any.whl", hash = "sha256:68b6dc391f537943314b94aeeb98afeb8dbad6c49bdb29284a13646c1cd8bb63", size = 116087, upload-time = "2025-10-17T02:31:18.202Z" },
+]
+
+[[package]]
+name = "google-cloud-billing-budgets"
+version = "1.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/6f/0a4bde98235f954232eb99f8aba86dd9d3a08b0365d8d0aeb8acfeae6517/google_cloud_billing_budgets-1.18.0.tar.gz", hash = "sha256:fbd1aa94e18edc59f4be9e1e02951fdaabae0cb55a0c6579c2358caa6e799ec3", size = 109096, upload-time = "2025-10-17T02:34:01.303Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/55/02d17f95fe10a7d3dc8d97798d5748642afa2932bad91542132b2a5438b9/google_cloud_billing_budgets-1.18.0-py3-none-any.whl", hash = "sha256:944a8a1258cf67b34d175a4da735e469ddd403c1de62967cdb269a8ae3f82fd7", size = 108212, upload-time = "2025-10-17T02:31:19.612Z" },
 ]
 
 [[package]]

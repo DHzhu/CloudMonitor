@@ -20,6 +20,7 @@ dependencies = [
     # Cloud SDKs - Google
     "google-genai>=1.0.0",
     "google-cloud-billing>=1.14.0",
+    "google-cloud-billing-budgets>=1.14.0",
 ]
 
 [dependency-groups]

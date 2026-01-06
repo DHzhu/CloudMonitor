@@ -21,7 +21,7 @@ class TestGCPCostMonitor:
             alias="测试 GCP",
             credentials={
                 "service_account_json": '{"type": "service_account", "project_id": "test"}',
-                "project_id": "test-project",
+                "billing_account_id": "XXXXXX-XXXXXX-XXXXXX",
             },
         )
 
@@ -40,7 +40,7 @@ class TestGCPCostMonitor:
     def test_required_credentials(self, monitor: GCPCostMonitor) -> None:
         """测试必需凭据"""
         assert "service_account_json" in monitor.required_credentials
-        assert "project_id" in monitor.required_credentials
+        assert "billing_account_id" in monitor.required_credentials
 
     def test_icon_path(self, monitor: GCPCostMonitor) -> None:
         """测试图标路径"""
@@ -62,34 +62,34 @@ class TestGCPCostMonitor:
 
     @pytest.mark.asyncio
     async def test_fetch_data_success(self, monitor: GCPCostMonitor) -> None:
-        """测试成功获取计费状态"""
+        """测试成功获取预算信息"""
         mock_result = MonitorResult(
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="计费状态", value="已启用", status="normal"),
-                MetricData(label="计费账户", value="XXXXXX-...", status="normal"),
+                MetricData(label="预算总数", value="2", unit="个", status="normal"),
+                MetricData(label="预算总额", value="$100.00", unit="USD", status="normal"),
             ],
         )
 
-        with patch.object(monitor, "_fetch_cost_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
         assert result.overall_status == "normal"
-        assert "已启用" in result.metrics[0].value
+        assert result.metrics[0].value == "2"
 
     @pytest.mark.asyncio
-    async def test_fetch_data_billing_disabled(self, monitor: GCPCostMonitor) -> None:
-        """测试计费未启用"""
+    async def test_fetch_data_no_budgets(self, monitor: GCPCostMonitor) -> None:
+        """测试无预算时返回警告"""
         mock_result = MonitorResult(
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="计费状态", value="未启用", status="warning"),
+                MetricData(label="预算状态", value="无预算", status="warning"),
             ],
         )
 
-        with patch.object(monitor, "_fetch_cost_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
         assert result.overall_status == "warning"
@@ -104,11 +104,25 @@ class TestGCPCostMonitor:
             raw_error="GCP 凭据无效",
         )
 
-        with patch.object(monitor, "_fetch_cost_sync", return_value=mock_result):
+        with patch.object(monitor, "_fetch_budgets_sync", return_value=mock_result):
             result = await monitor.fetch_data()
 
         assert result.overall_status == "error"
         assert "凭据无效" in (result.raw_error or "")
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_timeout(self, monitor: GCPCostMonitor) -> None:
+        """测试请求超时"""
+        import asyncio
+
+        async def mock_timeout(*args: object, **kwargs: object) -> None:
+            raise asyncio.TimeoutError()
+
+        with patch("plugins.gcp.cost.run_blocking", side_effect=mock_timeout):
+            result = await monitor.fetch_data()
+
+        assert result.overall_status == "error"
+        assert "超时" in (result.raw_error or "")
 
     def test_render_card(self, monitor: GCPCostMonitor) -> None:
         """测试渲染卡片"""
@@ -116,7 +130,7 @@ class TestGCPCostMonitor:
             plugin_id="gcp_cost",
             provider_name="GCP",
             metrics=[
-                MetricData(label="计费状态", value="已启用", status="normal"),
+                MetricData(label="预算总数", value="2", unit="个", status="normal"),
             ],
         )
 
@@ -134,3 +148,14 @@ class TestGCPCostMonitor:
 
         card = monitor.render_card(data)
         assert card is not None
+
+    def test_shorten_name(self, monitor: GCPCostMonitor) -> None:
+        """测试名称缩短"""
+        short = monitor._shorten_name("短名称")
+        assert short == "短名称"
+
+        # 使用超过 20 个字符的名称
+        long_name = "This is a very long budget name that needs truncation"
+        shortened = monitor._shorten_name(long_name)
+        assert len(shortened) <= 23  # 20 + "..."
+        assert shortened.endswith("...")

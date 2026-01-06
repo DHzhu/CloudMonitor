@@ -217,6 +217,11 @@ class DashboardPage(ft.Container):
 
         except Exception as e:
             print(f"Error refreshing {monitor.service_id}: {e}")
+            # 更新卡片为错误状态
+            if monitor.service_id in self.cards:
+                error_result = monitor._create_error_result(f"刷新失败: {e!s}")
+                self.cards[monitor.service_id].update_data(error_result)
+
             # 发布刷新失败事件
             await self._event_bus.publish(
                 Event(
