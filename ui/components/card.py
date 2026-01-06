@@ -4,6 +4,8 @@
 提供统一的监控数据卡片展示组件，支持骨架屏加载效果。
 """
 
+from collections.abc import Callable
+
 import flet as ft
 
 from core.models import MonitorResult
@@ -120,8 +122,8 @@ class MonitorCard(ft.Container):
         icon: str,
         data: MonitorResult | None = None,
         service_id: str = "",
-        on_refresh: callable | None = None,
-        on_edit: callable | None = None,
+        on_refresh: Callable | None = None,
+        on_edit: Callable | None = None,
         accent_color: str = ft.Colors.BLUE,
         show_skeleton: bool = False,
     ) -> None:
