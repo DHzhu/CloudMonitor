@@ -42,9 +42,9 @@ class SecurityManager:
         """
         return f"{self.service_name}:{service_id}:{credential_name}"
 
-    # Windows Credential Manager 单条凭据最大约 2560 字节
-    # Base64 编码后约 1.37 倍大小，所以原始数据限制设为 1200
-    MAX_CREDENTIAL_SIZE = 1200
+    # Windows Credential Manager 对凭据大小限制较严格
+    # 使用较小的块大小确保兼容性（512 字节原始数据，Base64 后约 700 字节）
+    MAX_CREDENTIAL_SIZE = 512
 
     def set_credential(self, service_id: str, credential_name: str, value: str) -> bool:
         """
