@@ -102,16 +102,24 @@ class GCPCostMonitor(BaseMonitor):
             try:
                 project_billing_info = client.get_project_billing_info(name=project_name)
             except Exception as e:
-                error_msg = str(e).lower()
-                if "permission" in error_msg or "forbidden" in error_msg:
+                error_msg = str(e)
+                error_lower = error_msg.lower()
+                if "permission" in error_lower or "forbidden" in error_lower or "403" in error_msg:
                     return self._create_error_result(
-                        "权限不足：需要 Billing Account Viewer 角色"
+                        "权限不足：请在 GCP 控制台 -> Billing -> "
+                        "账户管理中为服务账号添加 'Billing Account Viewer' 角色"
                     )
-                elif "not found" in error_msg:
-                    return self._create_error_result(f"项目 '{project_id}' 不存在")
-                elif "invalid" in error_msg:
+                elif "not found" in error_lower or "404" in error_msg:
+                    return self._create_error_result(
+                        f"项目 '{project_id}' 不存在或未关联计费账户"
+                    )
+                elif "invalid" in error_lower:
                     return self._create_error_result("服务账号凭据无效")
-                return self._create_error_result(f"无法获取项目计费信息: {e!s}")
+                elif "api" in error_lower and "enabled" in error_lower:
+                    return self._create_error_result(
+                        "请在 GCP 控制台启用 Cloud Billing API"
+                    )
+                return self._create_error_result(f"API 错误: {error_msg}")
 
             if not project_billing_info.billing_enabled:
                 return self._create_success_result(
