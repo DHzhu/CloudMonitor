@@ -32,7 +32,7 @@ class AppNavigationRail(ft.NavigationRail):
                             src="/icon.png",
                             width=48,
                             height=48,
-                            fit=ft.ImageFit.CONTAIN,
+                            fit="contain",
                         ),
                         ft.Text(
                             "CloudMonitor",
