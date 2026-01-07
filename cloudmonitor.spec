@@ -120,8 +120,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # 图标配置 (如有)
-    # icon='assets/icon.ico',  # Windows
+    # 图标配置
+    icon='assets/icon.ico',  # Windows
     # icon='assets/icon.icns',  # macOS
 )
 

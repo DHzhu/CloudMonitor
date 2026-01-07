@@ -28,10 +28,11 @@ class AppNavigationRail(ft.NavigationRail):
             leading=ft.Container(
                 content=ft.Column(
                     controls=[
-                        ft.Icon(
-                            ft.Icons.CLOUD_OUTLINED,
-                            size=32,
-                            color=ft.Colors.BLUE_400,
+                        ft.Image(
+                            src="/icon.png",
+                            width=48,
+                            height=48,
+                            fit=ft.ImageFit.CONTAIN,
                         ),
                         ft.Text(
                             "CloudMonitor",
