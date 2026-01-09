@@ -142,12 +142,12 @@ class TestAzureCostMonitor:
         # 我们需要 patch 导入它的模块路径。
         with patch("azure.mgmt.costmanagement.CostManagementClient") as mock_client_cls:
             mock_client = mock_client_cls.return_value
-            
+
             # 模拟执行同步方法
             with patch("plugins.azure.cost.datetime") as mock_date:
                 from datetime import datetime
                 mock_date.now.return_value = datetime(2024, 1, 15)
-                
+
                 # 调用被测方法
                 monitor._fetch_cost_sync(
                     tenant_id="t",
@@ -156,9 +156,12 @@ class TestAzureCostMonitor:
                     billing_account_id="ACC123",
                     billing_profile_id="PROF456"
                 )
-                
+
                 # 验证传递给 query.usage 的 scope 参数
                 assert mock_client.query.usage.called
                 args, kwargs = mock_client.query.usage.call_args
-                expected_scope = "/providers/Microsoft.Billing/billingAccounts/ACC123/billingProfiles/PROF456"
+                expected_scope = (
+                    "/providers/Microsoft.Billing/billingAccounts/ACC123"
+                    "/billingProfiles/PROF456"
+                )
                 assert kwargs["scope"] == expected_scope

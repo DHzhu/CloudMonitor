@@ -370,14 +370,14 @@ class DashboardPage(ft.Container):
         """刷新页面内容"""
         # 记录之前已有的服务 ID
         old_service_ids = set(self.cards.keys())
-        
+
         # 重新构建内容
         self.content = self._build_content()
         self.app_page.update()
-        
+
         # 检测新添加的服务（在 _build_grid 中已更新 self.cards）
         new_service_ids = set(self.cards.keys()) - old_service_ids
-        
+
         # 如果有新服务且没有缓存，触发它们的数据刷新
         if new_service_ids:
             self.app_page.run_task(self._refresh_new_services, new_service_ids)

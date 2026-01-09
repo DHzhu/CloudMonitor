@@ -113,10 +113,9 @@ class TestGCPCostMonitor:
     @pytest.mark.asyncio
     async def test_fetch_data_timeout(self, monitor: GCPCostMonitor) -> None:
         """测试请求超时"""
-        import asyncio
 
         async def mock_timeout(*args: object, **kwargs: object) -> None:
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
 
         with patch("plugins.gcp.cost.run_blocking", side_effect=mock_timeout):
             result = await monitor.fetch_data()

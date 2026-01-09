@@ -58,7 +58,6 @@ class SecurityManager:
         Returns:
             bool: 是否存储成功
         """
-        import base64
 
         try:
             key = self._make_key(service_id, credential_name)

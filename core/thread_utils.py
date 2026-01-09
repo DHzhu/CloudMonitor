@@ -28,7 +28,7 @@ def get_executor() -> ThreadPoolExecutor:
     return _executor
 
 
-async def run_blocking(func: Callable[..., T], *args: object, **kwargs: object) -> T:
+async def run_blocking[T](func: Callable[..., T], *args: object, **kwargs: object) -> T:
     """
     在线程池中运行同步阻塞函数
 

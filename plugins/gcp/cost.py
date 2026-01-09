@@ -57,7 +57,7 @@ class GCPCostMonitor(BaseMonitor):
 
         if not service_account_json:
             return self._create_error_result("未配置服务账号 JSON")
-        
+
         if not bigquery_table:
             return self._create_error_result("未配置 BigQuery 费用导出表")
 
@@ -72,7 +72,7 @@ class GCPCostMonitor(BaseMonitor):
                 timeout=30.0,
             )
             return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return self._create_error_result("请求超时（30秒），请检查网络连接")
         except Exception as e:
             return self._create_error_result(f"获取费用失败: {e!s}")
@@ -112,7 +112,7 @@ class GCPCostMonitor(BaseMonitor):
             # 获取当前月份
             now = datetime.now()
             current_month = now.strftime("%Y-%m")
-            
+
             # 构造查询 - 获取当月费用总计和按服务分类
             # 注意: credits.amount 是负数，表示折扣金额
             # 实际费用 = cost + credits.amount
@@ -120,8 +120,10 @@ class GCPCostMonitor(BaseMonitor):
             SELECT
                 service.description AS service_name,
                 SUM(cost) AS gross_cost,
-                SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS total_credits,
-                SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS net_cost,
+                SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0))
+                    AS total_credits,
+                SUM(cost) + SUM(IFNULL(
+                    (SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS net_cost,
                 currency
             FROM `{bigquery_table}`
             WHERE invoice.month = '{current_month.replace('-', '')}'
@@ -136,7 +138,7 @@ class GCPCostMonitor(BaseMonitor):
             except Exception as e:
                 error_msg = str(e)
                 error_lower = error_msg.lower()
-                
+
                 if "not found" in error_lower or "404" in error_msg:
                     return self._create_error_result(
                         f"表 '{bigquery_table}' 不存在，请检查表名格式"
@@ -168,22 +170,25 @@ class GCPCostMonitor(BaseMonitor):
                 )
 
             # 计算总费用（原价、折扣、实际）
-            total_gross = sum(row.gross_cost for row in results)
+            sum(row.gross_cost for row in results)
             total_credits = sum(row.total_credits for row in results)
             total_net = sum(row.net_cost for row in results)
             currency = results[0].currency if results else "USD"
-            
+
             # 构建指标
             metrics = [
                 MetricData(
                     label="本月费用",
                     value=f"${total_net:.2f}" if total_net >= 0 else f"-${abs(total_net):.2f}",
                     unit=currency,
-                    status="normal" if total_net < 100 else ("warning" if total_net < 500 else "error"),
+                    status=(
+                        "normal" if total_net < 100
+                        else ("warning" if total_net < 500 else "error")
+                    ),
                     trend="up" if total_net > 0 else "flat",
                 ),
             ]
-            
+
             # 如果有折扣，显示折扣信息
             if total_credits < 0:
                 metrics.append(
@@ -202,7 +207,10 @@ class GCPCostMonitor(BaseMonitor):
                 metrics.append(
                     MetricData(
                         label=service_name,
-                        value=f"${cost_value:.2f}" if cost_value >= 0 else f"-${abs(cost_value):.2f}",
+                        value=(
+                            f"${cost_value:.2f}" if cost_value >= 0
+                            else f"-${abs(cost_value):.2f}"
+                        ),
                         status="normal",
                     )
                 )

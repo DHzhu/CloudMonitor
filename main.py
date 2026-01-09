@@ -18,7 +18,6 @@ if sys.stderr is None:
 # 禁用不必要的日志输出
 os.environ.setdefault("FLET_LOG_LEVEL", "warning")
 
-import asyncio
 
 import flet as ft
 

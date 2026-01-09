@@ -99,7 +99,9 @@ class CredentialDialog(ft.AlertDialog):
             "billing_profile_id": ("计费对象 ID", "Azure 计费对象 ID"),
             # GCP 凭据字段
             "service_account_json": ("服务账号 JSON", "粘贴服务账号 JSON 密钥内容"),
-            "gcp_bigquery_table": ("BigQuery 费用表", "格式: project.dataset.gcp_billing_export_v1_XXXXXX"),
+            "gcp_bigquery_table": (
+                "BigQuery 费用表", "格式: project.dataset.gcp_billing_export_v1_XXXX"
+            ),
         }
 
         for field_name in self.required_fields:
