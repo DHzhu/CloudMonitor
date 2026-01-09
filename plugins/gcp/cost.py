@@ -117,23 +117,39 @@ class GCPCostMonitor(BaseMonitor):
             # 注意: credits.amount 是负数，表示折扣金额
             # 实际费用 = cost + credits.amount
             # 排序：优先展示有实际费用的服务，其次按原价降序
+            # 构造查询 - 优化排序逻辑：
+            # 1. 优先展示无折扣且有实际支出的 (>= $0.01)
+            # 2. 其次展示有折扣但仍有支出的
+            # 3. 最后按原价排序
             query = f"""
+            WITH ServiceCosts AS (
+                SELECT
+                    service.description AS service_name,
+                    SUM(cost) AS gross_cost,
+                    SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0))
+                        AS total_credits,
+                    currency
+                FROM `{bigquery_table}`
+                WHERE invoice.month = '{current_month.replace('-', '')}'
+                GROUP BY service.description, currency
+            )
             SELECT
-                service.description AS service_name,
-                SUM(cost) AS gross_cost,
-                SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0))
-                    AS total_credits,
-                SUM(cost) + SUM(IFNULL(
-                    (SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS net_cost,
+                service_name,
+                gross_cost,
+                total_credits,
+                gross_cost + total_credits AS net_cost,
                 currency
-            FROM `{bigquery_table}`
-            WHERE invoice.month = '{current_month.replace('-', '')}'
-            GROUP BY service.description, currency
             ORDER BY
-                CASE WHEN SUM(cost) + SUM(IFNULL(
-                    (SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) > 0
-                THEN 0 ELSE 1 END,
-                SUM(cost) DESC
+                CASE
+                    -- 无折扣且实际支出 >= 1美分
+                    WHEN total_credits = 0 AND gross_cost >= 0.005 THEN 0
+                    -- 有折扣但实际支出 >= 1美分
+                    WHEN total_credits != 0 AND (gross_cost + total_credits) >= 0.005 THEN 1
+                    -- 其余情况（如 0元项）
+                    ELSE 2
+                END,
+                (gross_cost + total_credits) DESC,
+                gross_cost DESC
             LIMIT 10
             """
 
