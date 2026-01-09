@@ -223,3 +223,24 @@ class TestGCPCostMonitorBigQuery:
         result = await monitor.fetch_data()
         assert result.overall_status == "error"
         assert "未配置" in (result.raw_error or "")
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_with_discount(self, monitor: GCPCostMonitor) -> None:
+        """测试包含折扣的费用计算"""
+        # 模拟：原价 $100，折扣 -$20，实际 $80
+        mock_result = MonitorResult(
+            plugin_id="gcp_cost",
+            provider_name="GCP",
+            metrics=[
+                MetricData(label="本月费用", value="$80.00", unit="USD", status="normal"),
+                MetricData(label="折扣优惠", value="-$20.00", status="normal"),
+                MetricData(label="Compute Engine", value="$60.00", status="normal"),
+            ],
+        )
+
+        with patch.object(monitor, "_fetch_cost_from_bigquery", return_value=mock_result):
+            result = await monitor.fetch_data()
+
+        assert result.overall_status == "normal"
+        assert result.metrics[0].value == "$80.00"  # 实际费用
+        assert len(result.metrics) >= 2  # 包含折扣信息

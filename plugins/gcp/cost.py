@@ -114,15 +114,19 @@ class GCPCostMonitor(BaseMonitor):
             current_month = now.strftime("%Y-%m")
             
             # 构造查询 - 获取当月费用总计和按服务分类
+            # 注意: credits.amount 是负数，表示折扣金额
+            # 实际费用 = cost + credits.amount
             query = f"""
             SELECT
                 service.description AS service_name,
-                SUM(cost) AS total_cost,
+                SUM(cost) AS gross_cost,
+                SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS total_credits,
+                SUM(cost) + SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) AS net_cost,
                 currency
             FROM `{bigquery_table}`
             WHERE invoice.month = '{current_month.replace('-', '')}'
             GROUP BY service.description, currency
-            ORDER BY total_cost DESC
+            ORDER BY net_cost DESC
             LIMIT 10
             """
 
@@ -163,26 +167,38 @@ class GCPCostMonitor(BaseMonitor):
                     ]
                 )
 
-            # 计算总费用
-            total_cost = sum(row.total_cost for row in results)
+            # 计算总费用（原价、折扣、实际）
+            total_gross = sum(row.gross_cost for row in results)
+            total_credits = sum(row.total_credits for row in results)
+            total_net = sum(row.net_cost for row in results)
             currency = results[0].currency if results else "USD"
             
             # 构建指标
             metrics = [
                 MetricData(
                     label="本月费用",
-                    value=f"${total_cost:.2f}" if total_cost >= 0 else f"-${abs(total_cost):.2f}",
+                    value=f"${total_net:.2f}" if total_net >= 0 else f"-${abs(total_net):.2f}",
                     unit=currency,
-                    status="normal" if total_cost < 100 else ("warning" if total_cost < 500 else "error"),
-                    trend="up" if total_cost > 0 else "flat",
+                    status="normal" if total_net < 100 else ("warning" if total_net < 500 else "error"),
+                    trend="up" if total_net > 0 else "flat",
                 ),
             ]
+            
+            # 如果有折扣，显示折扣信息
+            if total_credits < 0:
+                metrics.append(
+                    MetricData(
+                        label="折扣优惠",
+                        value=f"-${abs(total_credits):.2f}",
+                        status="normal",
+                    )
+                )
 
             # 添加服务明细（最多 4 个）
             for row in results[:4]:
-                if row.total_cost != 0:
+                if row.net_cost != 0:
                     service_name = self._shorten_name(row.service_name or "未知服务")
-                    cost_value = row.total_cost
+                    cost_value = row.net_cost
                     metrics.append(
                         MetricData(
                             label=service_name,
