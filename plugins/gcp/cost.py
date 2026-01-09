@@ -194,18 +194,18 @@ class GCPCostMonitor(BaseMonitor):
                     )
                 )
 
-            # 添加服务明细（最多 4 个）
+            # 添加服务明细（最多 4 个）- 显示原价
             for row in results[:4]:
-                if row.net_cost != 0:
-                    service_name = self._shorten_name(row.service_name or "未知服务")
-                    cost_value = row.net_cost
-                    metrics.append(
-                        MetricData(
-                            label=service_name,
-                            value=f"${cost_value:.2f}" if cost_value >= 0 else f"-${abs(cost_value):.2f}",
-                            status="normal",
-                        )
+                service_name = self._shorten_name(row.service_name or "未知服务")
+                # 显示原价（gross_cost），让用户了解各服务实际消费
+                cost_value = row.gross_cost
+                metrics.append(
+                    MetricData(
+                        label=service_name,
+                        value=f"${cost_value:.2f}" if cost_value >= 0 else f"-${abs(cost_value):.2f}",
+                        status="normal",
                     )
+                )
 
             return self._create_success_result(metrics)
 
