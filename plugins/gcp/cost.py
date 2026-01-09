@@ -139,6 +139,7 @@ class GCPCostMonitor(BaseMonitor):
                 total_credits,
                 gross_cost + total_credits AS net_cost,
                 currency
+            FROM ServiceCosts
             ORDER BY
                 CASE
                     -- 无折扣且实际支出 >= 1美分
