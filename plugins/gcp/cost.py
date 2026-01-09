@@ -116,6 +116,7 @@ class GCPCostMonitor(BaseMonitor):
             # 构造查询 - 获取当月费用总计和按服务分类
             # 注意: credits.amount 是负数，表示折扣金额
             # 实际费用 = cost + credits.amount
+            # 排序：优先展示有实际费用的服务，其次按原价降序
             query = f"""
             SELECT
                 service.description AS service_name,
@@ -128,7 +129,11 @@ class GCPCostMonitor(BaseMonitor):
             FROM `{bigquery_table}`
             WHERE invoice.month = '{current_month.replace('-', '')}'
             GROUP BY service.description, currency
-            ORDER BY net_cost DESC
+            ORDER BY
+                CASE WHEN SUM(cost) + SUM(IFNULL(
+                    (SELECT SUM(c.amount) FROM UNNEST(credits) AS c), 0)) > 0
+                THEN 0 ELSE 1 END,
+                SUM(cost) DESC
             LIMIT 10
             """
 
