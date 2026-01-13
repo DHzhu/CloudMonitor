@@ -6,7 +6,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import flet as ft
 
@@ -88,7 +88,7 @@ class BaseMonitor(ABC):
         return None
 
     @property
-    def icon_value(self) -> int:
+    def icon_value(self) -> Any:
         """返回服务图标的 ft.Icons 值（用于 render_card 等方法）"""
         return getattr(ft.Icons, self.icon.upper(), ft.Icons.CLOUD)
 

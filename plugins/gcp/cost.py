@@ -289,7 +289,9 @@ class GCPCostMonitor(BaseMonitor):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon_value, color=ft.Colors.RED, size=24),
+                            ft.Image(src=self.icon_path, width=24, height=24)
+                            if self.icon_path
+                            else ft.Icon(self.icon_value, color=ft.Colors.BLUE, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
@@ -355,7 +357,9 @@ class GCPCostMonitor(BaseMonitor):
                 controls=[
                     ft.Row(
                         controls=[
-                            ft.Icon(self.icon_value, color=ft.Colors.RED, size=24),
+                            ft.Image(src=self.icon_path, width=24, height=24)
+                            if self.icon_path
+                            else ft.Icon(self.icon_value, color=ft.Colors.RED, size=24),
                             ft.Text(
                                 self.alias or self.display_name,
                                 size=16,
